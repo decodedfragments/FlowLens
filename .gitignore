@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Runtime data - stays on the device (privacy: never commit logs or local layouts)
+logs/
+config.json
+config.*.json
+*.tmp
+
+# Model weights download automatically on first run
+*.pt
+*.onnx
+!docs/demo/yolo11n.onnx
+*.engine
+
+# Legacy / scratch
+zones.json
+.DS_Store
+Thumbs.db
+
+# Hub data (database, floor plan, token) and per-camera data folders
+hub/data/
+cams/

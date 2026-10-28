@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>FlowLens</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="FlowLens: privacy-first queue and occupancy analytics. On-device people counting from one webcam - door entries, line crossings, queue waits and dwell time. No faces, no recordings.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112..125,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: survey-sheet grid — a calibrated camera "frame" hero, then numbered pipeline, then contract tables. */
+:root {
+  --paper: #f2f4f1;        /* page ground: cool survey paper */
+  --sheet: #ffffff;        /* raised surfaces */
+  --ink: #111c2b;          /* primary text */
+  --ink-2: #4a5566;        /* secondary text */
+  --ink-3: #7b8594;        /* captions */
+  --rule: #d9ddd8;         /* hairlines */
+  --signal: #1d63d8;       /* accent: tracking blue */
+  --door: #c77d00;         /* door zones / amber */
+  --line: #d14f24;         /* counting lines */
+  --queue: #128a62;        /* queue zones */
+  --frame: #0f1620;        /* camera frame interior */
+  --frame-ink: #e9eef3;
+  --frame-dim: #8c97a6;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --maxw: 1160px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0d1117; --sheet: #151b23; --ink: #e8edf2; --ink-2: #aab4c0; --ink-3: #7d8896; --rule: #26303b;
+    --signal: #5b9cff; --door: #e8a33a; --line: #f0774c; --queue: #34c08f; --frame: #080b10; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0d1117; --sheet: #151b23; --ink: #e8edf2; --ink-2: #aab4c0; --ink-3: #7d8896; --rule: #26303b;
+  --signal: #5b9cff; --door: #e8a33a; --line: #f0774c; --queue: #34c08f; --frame: #080b10; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font: 16px/1.6 var(--body); margin: 0; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--paper); }
+a { color: var(--signal); }
+.wrap { max-width: var(--maxw); margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(2.3rem, 5.4vw, 4.1rem); line-height: 1.02; font-variation-settings: "wdth" 118; font-weight: 800; }
+h2 { font-size: clamp(1.7rem, 3.2vw, 2.5rem); line-height: 1.08; font-variation-settings: "wdth" 115; font-weight: 750; }
+h3 { font-size: 1.15rem; line-height: 1.25; font-variation-settings: "wdth" 112; font-weight: 700; }
+p { margin: 0; }
+.eyebrow { font: 500 12px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.lede { font-size: 1.15rem; color: var(--ink-2); max-width: 60ch; }
+code, .mono { font-family: var(--mono); }
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; border-radius: 4px; }
+
+/* nav */
+.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--rule); }
+.nav .wrap { display: flex; align-items: center; gap: 20px; height: 60px; }
+.mark { display: flex; align-items: center; gap: 10px; font: 800 19px/1 var(--display); font-variation-settings: "wdth" 125; color: var(--ink); text-decoration: none; letter-spacing: -.01em; }
+.mark svg { width: 26px; height: 26px; }
+.nav nav { display: flex; gap: 22px; margin-left: auto; }
+.nav nav a { color: var(--ink-2); text-decoration: none; font-size: 14px; }
+.nav nav a:hover { color: var(--ink); }
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: 10px; font: 600 15px/1 var(--body); text-decoration: none; border: 1px solid var(--rule); color: var(--ink); background: var(--sheet); cursor: pointer; }
+.btn:hover { border-color: var(--ink-3); }
+.btn.solid { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.btn.solid:hover { opacity: .9; }
+.btn.sm { height: 36px; padding: 0 14px; font-size: 14px; }
+@media (max-width: 760px) { .nav nav { display: none; } .nav .btn { margin-left: auto; } }
+
+/* hero */
+.hero { padding-block: 56px 40px; }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); gap: 48px; align-items: center; }
+@media (max-width: 960px) { .hero-grid { grid-template-columns: 1fr; gap: 32px; } }
+.hero-copy { display: grid; gap: 22px; min-width: 0; }
+.hero-copy h1 em { font-style: normal; color: var(--signal); }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 18px; font: 13px/1.4 var(--mono); color: var(--ink-3); }
+.facts span::before { content: "— "; color: var(--rule); }
+
+.frame { position: relative; border-radius: 14px; background: var(--frame); padding: 10px; box-shadow: 0 30px 60px -30px rgba(10,20,40,.45); min-width: 0; }
+.frame-bar { display: flex; align-items: center; gap: 10px; padding: 4px 6px 10px; font: 11.5px/1 var(--mono); color: var(--frame-dim); }
+.rec { display: inline-flex; align-items: center; gap: 6px; color: var(--frame-ink); font-weight: 500; letter-spacing: .08em; }
+.rec i { width: 7px; height: 7px; border-radius: 50%; background: #e0453a; animation: blink 1.6s infinite; }
+@keyframes blink { 50% { opacity: .3; } }
+.frame-bar .sp { flex: 1; }
+.scene { position: relative; aspect-ratio: 16 / 10; width: 100%; max-width: 100%; border-radius: 8px; overflow: hidden; background: #121a24; }
+.scene canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.readout { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin-top: 10px; background: #1d2733; border-radius: 8px; overflow: hidden; }
+.readout div { background: #0f1620; padding: 10px 12px; min-width: 0; }
+.readout b { display: block; font: 700 22px/1.1 var(--display); font-variation-settings: "wdth" 112; color: var(--frame-ink); font-variant-numeric: tabular-nums; }
+.readout span { font: 11px/1.3 var(--mono); color: var(--frame-dim); }
+@media (max-width: 520px) { .readout { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* sections */
+section.band { padding-block: 72px; border-top: 1px solid var(--rule); }
+.head { display: grid; gap: 14px; margin-bottom: 36px; max-width: 760px; }
+
+.buyers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--rule); border-radius: 14px; overflow: hidden; background: var(--sheet); }
+.buyers article { padding: 26px; display: grid; gap: 10px; align-content: start; border-right: 1px solid var(--rule); min-width: 0; }
+.buyers article:last-child { border-right: 0; }
+.buyers ul { margin: 4px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 15px; display: grid; gap: 4px; }
+@media (max-width: 860px) { .buyers { grid-template-columns: 1fr; } .buyers article { border-right: 0; border-bottom: 1px solid var(--rule); } .buyers article:last-child { border-bottom: 0; } }
+
+.pipe { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; counter-reset: step; }
+.pipe li { list-style: none; position: relative; padding: 18px 16px 18px; border: 1px solid var(--rule); border-radius: 12px; background: var(--sheet); display: grid; gap: 8px; align-content: start; min-width: 0; }
+.pipe li::before { counter-increment: step; content: counter(step, decimal-leading-zero); font: 500 12px/1 var(--mono); color: var(--signal); }
+.hubpipe { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pipe li:not(:last-child)::after { content: ""; position: absolute; right: -11px; top: 30px; width: 8px; height: 8px; border-top: 2px solid var(--ink-3); border-right: 2px solid var(--ink-3); transform: rotate(45deg); }
+.pipe p { font-size: 14px; color: var(--ink-2); }
+.pipe .tech { font: 12px/1.4 var(--mono); color: var(--ink-3); }
+ol.pipe { padding: 0; margin: 0; }
+@media (max-width: 960px) { .pipe { grid-template-columns: 1fr 1fr; } .pipe li::after { display: none; } }
+@media (max-width: 520px) { .pipe { grid-template-columns: 1fr; } }
+
+.robust { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 860px) { .robust { grid-template-columns: 1fr; } }
+.robust article { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 18px; padding: 20px; border: 1px solid var(--rule); border-radius: 14px; background: var(--sheet); align-items: start; }
+@media (max-width: 520px) { .robust article { grid-template-columns: 1fr; } }
+.robust svg { width: 100%; max-width: 148px; height: auto; border-radius: 8px; background: var(--frame); }
+.robust p { font-size: 15px; color: var(--ink-2); margin-top: 6px; }
+
+.contract { width: 100%; border-collapse: collapse; font-size: 15px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 14px; overflow: hidden; }
+.contract th, .contract td { text-align: left; padding: 14px 18px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.contract th { font: 500 12px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); background: color-mix(in srgb, var(--paper) 60%, var(--sheet)); }
+.contract tr:last-child td { border-bottom: 0; }
+.contract td:first-child { font-weight: 600; width: 30%; }
+.yes, .no { font: 600 12px/1 var(--mono); padding: 4px 8px; border-radius: 6px; white-space: nowrap; }
+.no { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
+.yes { color: var(--signal); background: color-mix(in srgb, var(--signal) 14%, transparent); }
+.tablewrap { overflow-x: auto; border-radius: 14px; }
+
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--rule); }
+.metrics div { padding: 18px 18px 18px 0; border-bottom: 1px solid var(--rule); display: grid; gap: 4px; min-width: 0; }
+.metrics b { font-family: var(--display); font-variation-settings: "wdth" 112; font-size: 1.02rem; }
+.metrics span { color: var(--ink-2); font-size: 14px; }
+@media (max-width: 860px) { .metrics { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 520px) { .metrics { grid-template-columns: 1fr; } }
+
+.preview { border-radius: 14px; overflow: hidden; border: 1px solid var(--rule); background: #0d0d0d; color: #f0efec; font: 12px/1.4 var(--body); }
+.pv-top { display: flex; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #2f2f2c; align-items: center; flex-wrap: wrap; }
+.pv-pill { border: 1px solid #2f2f2c; border-radius: 999px; padding: 3px 9px; color: #c3c2b7; font-size: 11px; white-space: nowrap; }
+.pv-pill i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #0ca30c; margin-right: 5px; }
+.pv-body { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 12px; padding: 12px; }
+@media (max-width: 760px) { .pv-body { grid-template-columns: 1fr; } }
+.pv-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.pv-tiles div { background: #1a1a19; border: 1px solid #2f2f2c; border-radius: 8px; padding: 8px; }
+.pv-tiles b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.pv-tiles span { color: #8d8c84; font-size: 10.5px; }
+.pv-list { background: #1a1a19; border: 1px solid #2f2f2c; border-radius: 8px; padding: 10px; margin-top: 8px; display: grid; gap: 8px; }
+.pv-row { display: flex; justify-content: space-between; gap: 8px; }
+.pv-row small { color: #8d8c84; display: block; }
+.pv-scene { position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 16/9; max-width: 100%; }
+.pv-scene canvas { width: 100%; height: 100%; display: block; }
+
+.run { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 860px) { .run { grid-template-columns: 1fr; } }
+.steps { display: grid; gap: 14px; counter-reset: s; margin: 0; padding: 0; }
+.steps li { list-style: none; display: grid; gap: 8px; }
+.steps li > span { font-weight: 600; }
+.steps li > span::before { counter-increment: s; content: counter(s) ". "; color: var(--signal); font-family: var(--mono); }
+.code { position: relative; background: var(--frame); color: var(--frame-ink); border-radius: 10px; padding: 14px 16px; font: 13.5px/1.6 var(--mono); overflow-x: auto; white-space: pre; }
+.code .c { color: var(--frame-dim); }
+.copy { position: absolute; top: 8px; right: 8px; font: 500 11px/1 var(--mono); padding: 6px 8px; border-radius: 6px; border: 1px solid #2a3542; background: #16202b; color: var(--frame-dim); cursor: pointer; }
+.copy:hover { color: var(--frame-ink); }
+.note { font-size: 14px; color: var(--ink-2); }
+.json { font-size: 12.5px; max-height: 360px; }
+
+.foot { padding-block: 40px 56px; border-top: 1px solid var(--rule); color: var(--ink-3); font-size: 14px; }
+.foot .wrap { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+@media (prefers-reduced-motion: reduce) { .rec i { animation: none; } }
+</style>
+</head>
+<body>
+
+
+<header class="nav">
+  <div class="wrap">
+    <a class="mark" href="#top" aria-label="FlowLens home">
+      <svg viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="7" fill="var(--ink)"/><path d="M6 17c3-7 11-7 14 0" stroke="var(--paper)" stroke-width="2.2" fill="none" stroke-linecap="round"/><circle cx="13" cy="13" r="2.6" fill="var(--signal)"/></svg>
+      FlowLens
+    </a>
+    <nav aria-label="Sections">
+      <a href="#how">How it works</a><a href="#scale">Multi-camera</a><a href="#privacy">Privacy</a><a href="#run">Run it</a>
+    </nav>
+    <a class="btn sm" data-repo href="https://github.com/">GitHub</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow">Privacy-first queue &amp; occupancy analytics</span>
+        <h1>See where queues form. <em>Never who</em> is in them.</h1>
+        <p class="lede">FlowLens turns one ordinary webcam into a people counter for stores, clinics and venues. It measures entries and exits, queue waits and dwell time on the device itself, and keeps no faces, no video and no identities.</p>
+        <div class="cta">
+          <a class="btn solid" href="demo/" data-demo hidden>Try it in your browser</a>
+          <a class="btn solid" href="#run" data-run>Run it on your laptop</a>
+          <a class="btn" data-repo href="https://github.com/">Source on GitHub</a>
+        </div>
+        <div class="facts"><span>YOLO11 person detection</span><span>runs offline</span><span>CSV logs every minute</span><span>open source</span></div>
+      </div>
+      <div class="frame" aria-label="Animated example of FlowLens counting people at a door, a line and a queue">
+        <div class="frame-bar"><span class="rec"><i></i>LIVE</span><span>cam 0 · 1280×720</span><span class="sp"></span><span>people shown as foot points</span></div>
+        <div class="scene"><canvas id="scene"></canvas></div>
+        <div class="readout" aria-live="off">
+          <div><b id="rIn">0</b><span>Entered · door</span></div>
+          <div><b id="rOut">0</b><span>Left · door</span></div>
+          <div><b id="rQ">0</b><span>In queue now</span></div>
+          <div><b id="rWait">0s</b><span>Longest wait</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="who">
+    <div class="wrap">
+      <div class="head">
+        <span class="eyebrow">Who it is for</span>
+        <h2>Operations managers who staff by guesswork today</h2>
+        <p class="lede">Queues cost sales, patient goodwill and staff hours, but most sites can only see them from the floor. FlowLens gives each site a live count and a per-minute record without installing a camera system that watches people.</p>
+      </div>
+      <div class="buyers">
+        <article><h3>Retail stores</h3><p class="note">Match tills to demand.</p>
+          <ul><li>Footfall by hour from the entrance door</li><li>Checkout queue length and longest wait</li><li>Alert when a queue passes its limit</li></ul></article>
+        <article><h3>Clinics &amp; front desks</h3><p class="note">Show real wait times.</p>
+          <ul><li>Average and P90 wait in reception</li><li>Visits per hour at each service point</li><li>Occupancy of waiting areas against capacity</li></ul></article>
+        <article><h3>Venues &amp; events</h3><p class="note">Know the room's occupancy.</p>
+          <ul><li>Net flow through every door</li><li>Heatmap of where people gather</li><li>Daily CSVs for post-event reports</li></ul></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="how">
+    <div class="wrap">
+      <div class="head">
+        <span class="eyebrow">How it works</span>
+        <h2>From camera frame to anonymous numbers in five steps</h2>
+        <p class="lede">Every frame is processed in memory and discarded. Only aggregates leave the pipeline.</p>
+      </div>
+      <ol class="pipe">
+        <li><h3>Capture</h3><p>Grabs only the newest webcam frame and reconnects on its own if the camera drops.</p><span class="tech">OpenCV · MJPG 720p</span></li>
+        <li><h3>Detect</h3><p>Finds people, and only people, with the COCO person class. No face model is loaded.</p><span class="tech">YOLO11 · GPU fp16 or CPU</span></li>
+        <li><h3>Track</h3><p>Follows each person with a short-lived number. Lost tracks are re-linked by motion alone.</p><span class="tech">ByteTrack · velocity gating</span></li>
+        <li><h3>Measure</h3><p>Door zones, counting lines and queue zones turn foot points into entries, exits and waits.</p><span class="tech">dead-band · exit grace · alerts</span></li>
+        <li><h3>Publish</h3><p>Streams aggregates to the dashboard twice a second and saves a CSV row every minute.</p><span class="tech">WebSocket · CSV · state.json</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="band" id="robust">
+    <div class="wrap">
+      <div class="head">
+        <span class="eyebrow">Built for real doorways</span>
+        <h2>Counts that hold up when people walk fast</h2>
+        <p class="lede">A laptop camera may see someone in only two or three frames as they come through a door. FlowLens counts on what it can observe reliably, not on a perfect track.</p>
+      </div>
+      <div class="robust">
+        <article>
+          <svg viewBox="0 0 148 100" role="img" aria-label="Door zone diagram">
+            <defs><pattern id="hz" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#e8a33a" stroke-width="2.4" stroke-opacity=".5"/></pattern></defs>
+            <rect x="8" y="14" width="36" height="78" fill="url(#hz)" stroke="#e8a33a" stroke-width="1.5"/>
+            <circle cx="28" cy="70" r="4" fill="#5b9cff"/><path d="M34 70 C 60 70, 80 58, 116 58" stroke="#5b9cff" stroke-width="1.5" stroke-dasharray="3 3" fill="none"/>
+            <circle cx="120" cy="58" r="4" fill="#5b9cff"/>
+            <text x="50" y="30" fill="#e9eef3" font-size="9" font-family="IBM Plex Mono, monospace">first seen</text>
+            <text x="50" y="41" fill="#e9eef3" font-size="9" font-family="IBM Plex Mono, monospace">in door = IN</text>
+          </svg>
+          <div><h3>Door zones</h3><p>A track that starts in the doorway is an entry. A track that ends there is an exit. One sighting of a person's feet in the zone is enough, and the zone checks the whole bottom edge of the person's box.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 148 100" role="img" aria-label="Counting line with dead-band diagram">
+            <rect x="64" y="8" width="20" height="84" fill="#f0774c" fill-opacity=".14"/>
+            <line x1="74" y1="8" x2="74" y2="92" stroke="#f0774c" stroke-width="2.5"/>
+            <circle cx="40" cy="52" r="4" fill="#5b9cff"/><circle cx="108" cy="52" r="4" fill="#5b9cff"/>
+            <path d="M46 52 H 100" stroke="#5b9cff" stroke-width="1.5" stroke-dasharray="3 3"/>
+            <text x="18" y="30" fill="#e9eef3" font-size="9" font-family="IBM Plex Mono, monospace">frame n</text>
+            <text x="96" y="30" fill="#e9eef3" font-size="9" font-family="IBM Plex Mono, monospace">n+1</text>
+          </svg>
+          <div><h3>Dead-band lines</h3><p>A crossing counts when a person is seen fully on one side of a thin band and later on the other side. That includes someone who jumps across between two frames. Standing on the line never counts.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 148 100" role="img" aria-label="Motion re-linking diagram">
+            <circle cx="22" cy="70" r="4" fill="#5b9cff"/><circle cx="46" cy="60" r="4" fill="#5b9cff"/>
+            <path d="M50 58 L 92 40" stroke="#8c97a6" stroke-width="1.5" stroke-dasharray="2 4"/>
+            <circle cx="98" cy="38" r="17" fill="none" stroke="#8c97a6" stroke-dasharray="3 3"/>
+            <circle cx="102" cy="36" r="4" fill="#34c08f"/>
+            <text x="12" y="92" fill="#e9eef3" font-size="9" font-family="IBM Plex Mono, monospace">id 7 lost → id 12</text>
+          </svg>
+          <div><h3>Motion re-linking</h3><p>When the tracker loses someone and issues a new ID, the new ID inherits the history if it appears where that person was heading. The search area scales with body size and speed. No appearance features are used.</p></div>
+        </article>
+        <article>
+          <svg viewBox="0 0 148 100" role="img" aria-label="Confirmation timeline diagram">
+            <line x1="12" y1="56" x2="136" y2="56" stroke="#2a3542" stroke-width="6" stroke-linecap="round"/>
+            <rect x="12" y="53" width="28" height="6" rx="3" fill="#8c97a6"/><rect x="44" y="53" width="70" height="6" rx="3" fill="#34c08f"/>
+            <text x="12" y="42" fill="#e9eef3" font-size="9" font-family="IBM Plex Mono, monospace">3 frames</text>
+            <text x="58" y="42" fill="#e9eef3" font-size="9" font-family="IBM Plex Mono, monospace">counted</text>
+            <text x="12" y="80" fill="#8c97a6" font-size="9" font-family="IBM Plex Mono, monospace">1 s exit grace · 5 s alerts</text>
+          </svg>
+          <div><h3>Confirmations</h3><p>A track must last 3 frames before it counts. Visits shorter than the minimum are ignored, zone exits get a 1-second grace period, and an alert must hold for 5 seconds before it opens.</p></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="scale">
+    <div class="wrap">
+      <div class="head">
+        <span class="eyebrow">From one camera to a whole venue</span>
+        <h2>Many cameras, one site view</h2>
+        <p class="lede">Each camera runs FlowLens on its own computer and keeps its video there. A FlowLens Hub collects only the numbers and shows the whole event, store or venue in one dashboard.</p>
+      </div>
+      <ol class="pipe hubpipe">
+        <li><h3>Camera nodes</h3><p>One FlowLens per camera: a laptop, a mini PC, or several IP cameras on one GPU machine. Each node has its own doors, lines and zones.</p><span class="tech">video stays on the node</span></li>
+        <li><h3>Aggregates only</h3><p>Nodes send counts, waits and a fading occupancy grid every 2 seconds, plus a record every minute. If the network drops they buffer, then catch up.</p><span class="tech">HTTP · token · store-and-forward</span></li>
+        <li><h3>FlowLens Hub</h3><p>Shows people inside the site, entries and exits, occupancy per area, queues, movement between areas, alerts and trends.</p><span class="tech">SQLite · CSV · optional PIN</span></li>
+      </ol>
+      <div class="robust" style="margin-top:18px">
+        <article style="grid-template-columns:1fr"><div><h3>No double counting</h3><p>Each door or line is marked as a <b>site entrance</b>, as <b>between areas</b> (with from and to), or as <b>ignored</b>. People inside the site come from entrances only, so cameras with overlapping views never add up the same person twice.</p></div></article>
+        <article style="grid-template-columns:1fr"><div><h3>Floor plan optional</h3><p>Upload any image: a venue plan, a store layout or a sketch. Click four matching floor points per camera to place its heatmap and zones on the plan. With no plan, the hub shows a board of areas instead.</p></div></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="privacy">
+    <div class="wrap">
+      <div class="head">
+        <span class="eyebrow">Privacy by design</span>
+        <h2>The privacy contract, written into the code</h2>
+        <p class="lede">FlowLens publishes its own guarantees at <code>/api/privacy</code>. These are not settings someone can forget to turn on. The pipeline has no path to do otherwise.</p>
+      </div>
+      <div class="tablewrap">
+        <table class="contract">
+          <thead><tr><th>Question</th><th>Answer</th><th>How</th></tr></thead>
+          <tbody>
+            <tr><td>Does it recognise faces or identities?</td><td><span class="no">Never</span></td><td>Only a person detector is loaded. Re-linking uses position and speed, never appearance.</td></tr>
+            <tr><td>Does it record video?</td><td><span class="no">Never</span></td><td>Each frame lives in memory for one loop iteration. Nothing visual is written to disk.</td></tr>
+            <tr><td>Can I see the camera?</td><td><span class="yes">Anonymised</span></td><td>The live view blurs, pixelates or masks people <em>before</em> encoding, or turns off completely. It is served to this machine only.</td></tr>
+            <tr><td>What is saved?</td><td><span class="yes">Aggregates</span></td><td>Per-minute counts, wait statistics and anonymous events such as "Front door: entered". No IDs, coordinates or images.</td></tr>
+            <tr><td>Can small groups be singled out?</td><td><span class="no">Optional guard</span></td><td>A k-threshold shows counts below k as "&lt;k".</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="metrics">
+    <div class="wrap">
+      <div class="head">
+        <span class="eyebrow">What you measure</span>
+        <h2>Draw on the camera view, then read the numbers</h2>
+        <p class="lede">Outline doors, queues and service points directly on the live view. Every metric updates twice a second and is logged each minute.</p>
+      </div>
+      <div class="preview" aria-label="Illustration of the FlowLens dashboard">
+        <div class="pv-top"><b style="margin-right:6px">FlowLens</b><span class="pv-pill"><i></i>Camera 0 · 1280×720</span><span class="pv-pill">AI 29 fps · GPU</span><span class="pv-pill"><i></i>Auto-saving</span></div>
+        <div class="pv-body">
+          <div class="pv-scene"><canvas id="pv"></canvas></div>
+          <div>
+            <div class="pv-tiles">
+              <div><b id="pv1">6</b><span>In view</span></div><div><b id="pv2">48</b><span>Entries</span></div><div><b id="pv3">2m 40s</b><span>Longest wait</span></div>
+            </div>
+            <div class="pv-list">
+              <div class="pv-row"><span>Checkout queue<small>Avg dwell 1m 52s · P90 3m 10s</small></span><b>4</b></div>
+              <div class="pv-row"><span>Front door<small>Entered 48 · Left 42</small></span><b>+6</b></div>
+              <div class="pv-row"><span>Help desk<small>Visits/h 18 · Normal</small></span><b>1</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="note" style="margin-top:10px">Illustration with example figures.</p>
+      <div class="metrics" style="margin-top:32px">
+        <div><b>People in view</b><span>Debounced live count for the whole scene</span></div>
+        <div><b>Entries, exits, net flow</b><span>Per door zone or counting line, with hourly rates</span></div>
+        <div><b>Zone occupancy</b><span>Now, peak and use of capacity for each zone</span></div>
+        <div><b>Dwell time</b><span>Average, median, P90 and maximum per zone</span></div>
+        <div><b>Longest current wait</b><span>The oldest person in any queue zone, live</span></div>
+        <div><b>Visits per hour</b><span>Throughput for each service point</span></div>
+        <div><b>Alerts</b><span>Over capacity, or a wait above your threshold</span></div>
+        <div><b>Heatmap</b><span>Where people spend time, live or since start</span></div>
+        <div><b>Trends &amp; CSV</b><span>15 minutes to 24 hours, exported or auto-logged</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="run">
+    <div class="wrap run">
+      <div class="head" style="margin:0">
+        <span class="eyebrow">Run it</span>
+        <h2>Five minutes on a laptop with a webcam</h2>
+        <p class="lede">Python 3.10 to 3.12 on Windows, macOS or Linux. An NVIDIA GPU is optional but recommended for busy doorways.</p>
+        <p class="note">The dashboard opens at <code>http://localhost:8000</code>. Draw a door, a line or a queue zone, click <b>Save layout</b>, and counting starts.</p>
+      </div>
+      <ol class="steps">
+        <li><span>Get the code</span><div class="code"><button class="copy" type="button">Copy</button><span data-clone>git clone https://github.com/&lt;you&gt;/flowlens.git</span>
+cd flowlens</div></li>
+        <li><span>Create an environment and install</span><div class="code"><button class="copy" type="button">Copy</button>python -m venv .venv
+<span class="c"># Windows: .\.venv\Scripts\Activate.ps1</span>
+source .venv/bin/activate
+pip install -r requirements.txt</div></li>
+        <li><span>Start FlowLens</span><div class="code"><button class="copy" type="button">Copy</button>python app.py              <span class="c"># webcam 0</span>
+python app.py --source 1   <span class="c"># another camera or rtsp://…</span></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="band" id="feed">
+    <div class="wrap run">
+      <div class="head" style="margin:0">
+        <span class="eyebrow">For builders</span>
+        <h2>An open feed for digital twins and dashboards</h2>
+        <p class="lede">Everything the dashboard shows comes from one JSON stream at <code>/ws</code>. Pipe it into a digital twin, a BI tool or your own alerting.</p>
+        <p class="note">Endpoints: <code>/api/snapshot</code> · <code>/api/series</code> · <code>/api/export.csv</code> · <code>/api/logs</code> · <code>/api/privacy</code></p>
+      </div>
+      <div class="code json">{
+  "kpis": { "in_view": 6, "entries": 48, "exits": 42,
+            "avg_dwell_s": 112.4, "longest_wait_s": 160.0 },
+  "zones": [{ "name": "Checkout queue", "type": "queue",
+              "count": 4, "p90_dwell_s": 190.2,
+              "status": "warning" }],
+  "counters": [{ "name": "Front door", "kind": "door",
+                 "in": 48, "out": 42, "in_hr": 36.0 }],
+  "heat": { "w": 64, "h": 36, "live": [ … ] }
+}</div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <span>FlowLens · Day 19 of a daily build series · open source under AGPL-3.0 (inherited from Ultralytics YOLO)</span>
+    <a data-repo href="https://github.com/">View the source</a>
+  </div>
+</footer>
+
+<script>
+(() => {
+  // Repo link: derived from GitHub Pages hostname when hosted there.
+  const h = location.hostname;
+  if (/\.github\.io$/.test(h)) {
+    const user = h.split(".")[0], repo = location.pathname.split("/").filter(Boolean)[0] || "flowlens";
+    const url = `https://github.com/${user}/${repo}`;
+    document.querySelectorAll("[data-repo]").forEach(a => a.href = url);
+    document.querySelectorAll("[data-clone]").forEach(s => s.textContent = `git clone ${url}.git`);
+  }
+
+  // the in-browser demo lives next to this page on GitHub Pages (or a local preview)
+  if (/\.github\.io$/.test(h) || h === "localhost" || h === "127.0.0.1") {
+    document.querySelectorAll("[data-demo]").forEach(a => a.hidden = false);
+    document.querySelectorAll("[data-run]").forEach(a => a.classList.remove("solid"));
+  }
+
+  document.querySelectorAll(".copy").forEach(b => b.addEventListener("click", async () => {
+    const text = b.parentElement.innerText.replace(/^Copy\n?/, "").trim();
+    try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; }
+    catch { const r = document.createRange(); r.selectNodeContents(b.parentElement); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "Selected"; }
+    setTimeout(() => b.textContent = "Copy", 1600);
+  }));
+
+  // ---- Scene simulation: foot points walk in through a door, cross a line, queue, get served, leave.
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const DOOR = [[0.02, 0.30], [0.14, 0.30], [0.14, 0.96], [0.02, 0.96]];
+  const LINE = [[0.30, 0.22], [0.30, 0.98]];
+  const QUEUE = [[0.44, 0.40], [0.80, 0.40], [0.80, 0.70], [0.44, 0.70]];
+  const DESK = [[0.84, 0.22], [0.98, 0.22], [0.98, 0.56], [0.84, 0.56]];
+  const C = { door: "#e8a33a", line: "#f0774c", queue: "#34c08f", desk: "#5b9cff", dot: "#e9eef3" };
+  const st = { t: 0, people: [], nextId: 1, spawnIn: 0, served: 0, entered: 0, left: 0, lineIn: 0, lineOut: 0, deskBusy: 0 };
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const qSlot = i => [0.77 - i * 0.07, 0.55 + (i % 2 ? 0.04 : -0.03)];
+  function spawn() {
+    st.people.push({ id: st.nextId++, x: rnd(0.04, 0.12), y: rnd(0.6, 0.9), phase: "enter", speed: rnd(0.16, 0.24), wait: 0, side: -1, h: rnd(0.2, 0.26) });
+    st.entered++;
+  }
+  function step(dt) {
+    st.t += dt;
+    st.spawnIn -= dt;
+    if (st.spawnIn <= 0 && st.people.length < 9) { spawn(); st.spawnIn = rnd(2.2, 4.2); }
+    const queue = st.people.filter(p => p.phase === "queue").sort((a, b) => a.qt - b.qt);
+    queue.forEach((p, i) => { [p.tx, p.ty] = qSlot(i); });
+    if (!st.deskBusy && queue.length && Math.hypot(queue[0].x - queue[0].tx, queue[0].y - queue[0].ty) < 0.02) {
+      const p = queue[0]; p.phase = "desk"; p.tx = 0.91; p.ty = 0.42; p.service = rnd(2.5, 4.5); st.deskBusy = p.id;
+    }
+    for (const p of st.people) {
+      if (p.phase === "enter") { p.tx = 0.40; p.ty = rnd(0.52, 0.62); p.phase = "walk"; }
+      if (p.phase === "walk" && Math.hypot(p.x - p.tx, p.y - p.ty) < 0.02) { p.phase = "queue"; p.qt = st.t; }
+      if (p.phase === "desk" && Math.hypot(p.x - p.tx, p.y - p.ty) < 0.02) { p.service -= dt; if (p.service <= 0) { p.phase = "exit"; p.tx = 0.07; p.ty = rnd(0.7, 0.9); st.deskBusy = 0; st.served++; } }
+      const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy);
+      if (d > 0.004) { const s = Math.min(d, p.speed * (p.phase === "queue" ? 0.6 : 1) * dt); p.x += dx / d * s; p.y += dy / d * s; }
+      const side = p.x < LINE[0][0] - 0.015 ? -1 : p.x > LINE[0][0] + 0.015 ? 1 : 0;
+      if (side && side !== p.side) { side > 0 ? st.lineIn++ : st.lineOut++; p.side = side; }
+      if (p.phase === "exit" && Math.hypot(p.x - p.tx, p.y - p.ty) < 0.02) { p.gone = true; st.left++; }
+    }
+    st.people = st.people.filter(p => !p.gone);
+  }
+  for (let i = 0; i < 240; i++) step(1 / 8);   // pre-roll so the first frame is already busy
+
+  function poly(ctx, pts, W, H) { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x * W, y * H) : ctx.moveTo(x * W, y * H)); ctx.closePath(); }
+  function hatch(ctx, pts, W, H, color) {
+    ctx.save(); poly(ctx, pts, W, H); ctx.clip(); ctx.strokeStyle = color; ctx.globalAlpha = .35; ctx.lineWidth = 2;
+    for (let k = -H; k < W; k += 9) { ctx.beginPath(); ctx.moveTo(k, H); ctx.lineTo(k + H, 0); ctx.stroke(); } ctx.restore();
+  }
+  function label(ctx, x, y, text, color) {
+    ctx.font = "600 11px IBM Plex Mono, monospace"; const w = ctx.measureText(text).width + 14;
+    ctx.fillStyle = "rgba(8,11,16,.85)"; ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(x, y, w, 20, 5); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#e9eef3"; ctx.fillText(text, x + 7, y + 14);
+  }
+  function fit(c) {
+    const r = c.getBoundingClientRect(), d = devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(r.width * d)), h = Math.max(1, Math.round(r.height * d));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    const ctx = c.getContext("2d"); ctx.setTransform(d, 0, 0, d, 0, 0); return [ctx, r.width, r.height];
+  }
+  function draw(c, compact) {
+    const [ctx, W, H] = fit(c);
+    const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "#16202c"); g.addColorStop(1, "#0f1620"); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = "rgba(255,255,255,.04)"; ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 28) { ctx.beginPath(); ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, H); ctx.stroke(); }
+    for (let y = 0; y < H; y += 28) { ctx.beginPath(); ctx.moveTo(0, y + .5); ctx.lineTo(W, y + .5); ctx.stroke(); }
+    // floor perspective hint
+    ctx.strokeStyle = "rgba(255,255,255,.07)"; ctx.beginPath(); ctx.moveTo(0, H * .2); ctx.lineTo(W, H * .2); ctx.stroke();
+    hatch(ctx, DOOR, W, H, C.door); poly(ctx, DOOR, W, H); ctx.strokeStyle = C.door; ctx.lineWidth = 2; ctx.stroke();
+    poly(ctx, QUEUE, W, H); ctx.fillStyle = "rgba(52,192,143,.10)"; ctx.fill(); ctx.setLineDash([7, 5]); ctx.strokeStyle = C.queue; ctx.stroke(); ctx.setLineDash([]);
+    poly(ctx, DESK, W, H); ctx.fillStyle = "rgba(91,156,255,.10)"; ctx.fill(); ctx.strokeStyle = C.desk; ctx.stroke();
+    ctx.strokeStyle = C.line; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(LINE[0][0] * W, LINE[0][1] * H); ctx.lineTo(LINE[1][0] * W, LINE[1][1] * H); ctx.stroke();
+    const mx = LINE[0][0] * W, my = H * .5; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + 24, my); ctx.stroke();
+    ctx.fillStyle = C.line; ctx.beginPath(); ctx.moveTo(mx + 31, my); ctx.lineTo(mx + 23, my - 5); ctx.lineTo(mx + 23, my + 5); ctx.fill();
+    // people: anonymous capsules + foot points
+    const queueNow = st.people.filter(p => p.phase === "queue");
+    for (const p of [...st.people].sort((a, b) => a.y - b.y)) {
+      const fx = p.x * W, fy = p.y * H, bh = p.h * H, bw = bh * .38;
+      ctx.fillStyle = "rgba(160,176,196,.18)"; ctx.beginPath(); ctx.roundRect(fx - bw / 2, fy - bh, bw, bh, bw / 2); ctx.fill();
+      ctx.strokeStyle = "rgba(233,238,243,.75)"; ctx.lineWidth = 1.5; const L = Math.min(8, bw / 3);
+      for (const [x, y, sx, sy] of [[fx - bw / 2, fy - bh, 1, 1], [fx + bw / 2, fy - bh, -1, 1], [fx - bw / 2, fy, 1, -1], [fx + bw / 2, fy, -1, -1]]) {
+        ctx.beginPath(); ctx.moveTo(x, y + sy * L); ctx.lineTo(x, y); ctx.lineTo(x + sx * L, y); ctx.stroke();
+      }
+      ctx.fillStyle = "#0b0f15"; ctx.beginPath(); ctx.arc(fx, fy, 5, 0, 7); ctx.fill();
+      ctx.fillStyle = p.phase === "queue" ? C.queue : "#5b9cff"; ctx.beginPath(); ctx.arc(fx, fy, 3.6, 0, 7); ctx.fill();
+      if (p.phase === "queue" && !compact) { ctx.font = "500 10px IBM Plex Mono, monospace"; ctx.fillStyle = "#e9eef3"; ctx.fillText(`${Math.round(st.t - p.qt)}s`, fx - bw / 2, fy - bh - 4); }
+    }
+    if (!compact) {
+      label(ctx, DOOR[0][0] * W + 4, DOOR[0][1] * H - 26, `Door · in ${st.entered} · out ${st.left}`, C.door);
+      label(ctx, QUEUE[0][0] * W + 4, QUEUE[0][1] * H - 26, `Queue · ${queueNow.length}`, C.queue);
+      label(ctx, LINE[0][0] * W + 8, LINE[0][1] * H + 4, `Line · in ${st.lineIn} · out ${st.lineOut}`, C.line);
+    }
+    return queueNow;
+  }
+  const scene = document.getElementById("scene"), pv = document.getElementById("pv");
+  function render() {
+    const q = draw(scene, false); draw(pv, true);
+    const longest = q.length ? Math.max(...q.map(p => st.t - p.qt)) : 0;
+    document.getElementById("rIn").textContent = st.entered;
+    document.getElementById("rOut").textContent = st.left;
+    document.getElementById("rQ").textContent = q.length;
+    document.getElementById("rWait").textContent = `${Math.round(longest)}s`;
+  }
+  let last = performance.now();
+  function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; step(dt); render(); requestAnimationFrame(loop); }
+  render();
+  if (!reduce) requestAnimationFrame(loop);
+  addEventListener("resize", render);
+})();
+</script>
+
+</body>
+</html>

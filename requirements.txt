@@ -1,0 +1,6 @@
+ultralytics>=8.3.0
+opencv-python>=4.9
+lap>=0.5.12
+numpy
+fastapi>=0.110
+uvicorn[standard]>=0.29

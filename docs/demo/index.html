@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FlowLens Live Demo</title>
+<meta name="description" content="Try FlowLens in your browser: people counting at a door, a line and a queue. Runs entirely on your device - no video is uploaded.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112..125,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  --page: #0d1117; --sheet: #151b23; --sheet-2: #1c2430; --rule: #26303b; --ink: #e8edf2; --ink-2: #aab4c0; --ink-3: #7d8896;
+  --signal: #5b9cff; --door: #e8a33a; --line: #f0774c; --queue: #34c08f; --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif; --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--page); color: var(--ink); font: 15px/1.55 var(--body); padding-top: env(safe-area-inset-top, 0px); }
+a { color: var(--signal); }
+.wrap { max-width: 1320px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.nav { border-bottom: 1px solid var(--rule); }
+.nav .wrap { display: flex; align-items: center; gap: 18px; height: 58px; }
+.mark { display: flex; align-items: center; gap: 10px; font: 800 18px/1 var(--display); font-variation-settings: "wdth" 125; color: var(--ink); text-decoration: none; }
+.mark svg { width: 24px; height: 24px; }
+.nav .sp { flex: 1; }
+.nav a.l { color: var(--ink-2); text-decoration: none; font-size: 14px; }
+h1 { font: 800 clamp(1.8rem, 3.6vw, 2.6rem)/1.05 var(--display); font-variation-settings: "wdth" 118; margin: 0; letter-spacing: -.01em; }
+.intro { padding-block: 28px 18px; display: grid; gap: 10px; }
+.intro p { margin: 0; color: var(--ink-2); max-width: 70ch; }
+.priv { display: inline-flex; align-items: center; gap: 8px; font: 500 13px/1.3 var(--mono); color: #9fe3c7; background: rgba(52,192,143,.1); border: 1px solid rgba(52,192,143,.3); padding: 6px 10px; border-radius: 8px; width: fit-content; }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 18px; padding-bottom: 40px; }
+@media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+.panel { align-self: start; background: var(--sheet); border: 1px solid var(--rule); border-radius: 14px; min-width: 0; }
+.bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid var(--rule); }
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--rule); background: var(--sheet-2); color: var(--ink); font: 600 14px/1 var(--body); cursor: pointer; }
+.btn:hover { border-color: var(--ink-3); }
+.btn.primary { background: var(--signal); border-color: var(--signal); color: #071226; }
+.btn:disabled { opacity: .45; cursor: default; }
+select { height: 38px; border-radius: 9px; border: 1px solid var(--rule); background: var(--sheet-2); color: var(--ink); padding: 0 10px; font: inherit; }
+.stage { position: relative; aspect-ratio: 16 / 9; max-width: 100%; background: #080b10; overflow: hidden; touch-action: none; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: var(--ink-2); }
+.empty b { display: block; color: var(--ink); font: 700 1.2rem/1.3 var(--display); font-variation-settings: "wdth" 112; margin-bottom: 6px; }
+.status { padding: 10px 14px; border-top: 1px solid var(--rule); font: 12.5px/1.4 var(--mono); color: var(--ink-3); display: flex; gap: 14px; flex-wrap: wrap; }
+.side { display: grid; gap: 14px; align-content: start; }
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--rule); border-radius: 14px; overflow: hidden; border: 1px solid var(--rule); }
+.kpis div { background: var(--sheet); padding: 12px 14px; }
+.kpis b { display: block; font: 700 26px/1.1 var(--display); font-variation-settings: "wdth" 112; font-variant-numeric: tabular-nums; }
+.kpis span { font: 11.5px/1.3 var(--mono); color: var(--ink-3); }
+.kpis i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+.card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 14px; padding: 14px; }
+.card h2 { margin: 0 0 8px; font: 600 13px/1.3 var(--body); color: var(--ink-2); }
+.log { max-height: 220px; overflow-y: auto; font-size: 13px; }
+.log div { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--rule); }
+.log time { color: var(--ink-3); font-family: var(--mono); font-size: 12px; flex: none; }
+.note { color: var(--ink-3); font-size: 13px; }
+.note b { color: var(--ink-2); }
+.foot { border-top: 1px solid var(--rule); padding-block: 22px 40px; color: var(--ink-3); font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="nav"><div class="wrap">
+  <a class="mark" href="../"><svg viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="7" fill="#e8edf2"/><path d="M6 17c3-7 11-7 14 0" stroke="#0d1117" stroke-width="2.2" fill="none" stroke-linecap="round"/><circle cx="13" cy="13" r="2.6" fill="#1d63d8"/></svg>FlowLens</a>
+  <span class="sp"></span><a class="l" href="../">About</a><a class="l" id="ghLink" href="https://github.com/">GitHub</a>
+</div></header>
+
+<main class="wrap">
+  <section class="intro">
+    <h1>Try FlowLens live</h1>
+    <p>Point your webcam at a room or open a video of people walking. The demo counts people entering through the <b style="color:var(--door)">door zone</b>, crossing the <b style="color:var(--line)">line</b> and waiting in the <b style="color:var(--queue)">queue zone</b>. Drag the shapes' corner points to fit your scene.</p>
+    <span class="priv">● Runs entirely in this browser tab. No video or images are uploaded.</span>
+  </section>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="bar">
+        <button class="btn primary" id="bCam">Use my webcam</button>
+        <label class="btn" for="fVid">Open a video file<input type="file" id="fVid" accept="video/*" hidden></label>
+        <span style="flex:1"></span>
+        <select id="privacy" aria-label="How people are shown">
+          <option value="blur">People blurred</option><option value="pixelate">People pixelated</option><option value="dots">Foot points only</option>
+        </select>
+        <button class="btn" id="bReset">Reset counts</button>
+        <button class="btn" id="bLayout">Reset shapes</button>
+      </div>
+      <div class="stage" id="stage">
+        <canvas id="cv"></canvas>
+        <div class="empty" id="empty"><div><b>Start the camera or open a video</b>The detector (YOLO11n, about 10 MB) downloads once and then runs on your device.</div></div>
+      </div>
+      <div class="status"><span id="sModel">model: not loaded</span><span id="sFps">— fps</span><span id="sBackend"></span></div>
+    </section>
+
+    <aside class="side">
+      <div class="kpis">
+        <div><b id="kView">0</b><span>People in view</span></div>
+        <div><b id="kQueue">0</b><span><i style="background:var(--queue)"></i>In queue now</span></div>
+        <div><b id="kIn">0</b><span><i style="background:var(--door)"></i>Entered · door</span></div>
+        <div><b id="kOut">0</b><span><i style="background:var(--door)"></i>Left · door</span></div>
+        <div><b id="kLin">0</b><span><i style="background:var(--line)"></i>Line · in</span></div>
+        <div><b id="kLout">0</b><span><i style="background:var(--line)"></i>Line · out</span></div>
+        <div><b id="kWait">–</b><span>Longest wait now</span></div>
+        <div><b id="kAvg">–</b><span>Average wait</span></div>
+      </div>
+      <div class="card"><h2>Activity</h2><div class="log" id="log"><div class="note">Events appear as people pass the door and line.</div></div></div>
+      <div class="card note">This demo is a small version of FlowLens that runs in the browser. The full app adds a dashboard, any number of zones and lines, CSV logs, alerts, and a site hub that combines many cameras. <a href="../#run">Run it on your laptop</a>.</div>
+    </aside>
+  </div>
+</main>
+<footer class="foot"><div class="wrap">FlowLens · open source under AGPL-3.0 · detection by Ultralytics YOLO11 running on ONNX Runtime Web</div></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.webgpu.min.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const IMG = 320, CONF = 0.35, IOU = 0.5;
+const cv = $("cv"), ctx = cv.getContext("2d");
+const video = document.createElement("video"); video.muted = true; video.playsInline = true; video.loop = true;
+const pre = document.createElement("canvas"); pre.width = pre.height = IMG; const pctx = pre.getContext("2d", { willReadFrequently: true });
+const tiny = document.createElement("canvas"); const tctx = tiny.getContext("2d");
+const shown = document.createElement("canvas"); const sctx = shown.getContext("2d");   // the analysed frame
+let session = null, running = false, busy = false, dets = [], fpsT = [], backend = "";
+
+// repo link when hosted on GitHub Pages
+if (/\.github\.io$/.test(location.hostname)) { const u = location.hostname.split(".")[0], r = location.pathname.split("/").filter(Boolean)[0] || "flowlens"; $("ghLink").href = `https://github.com/${u}/${r}`; }
+
+/* ---------------------------------------------------------------- layout (normalised 0..1) */
+const DEFAULT = () => ({
+  door: [[0.02, 0.35], [0.18, 0.35], [0.18, 0.98], [0.02, 0.98]],
+  line: [[0.40, 0.25], [0.40, 0.98]],
+  queue: [[0.55, 0.45], [0.95, 0.45], [0.95, 0.98], [0.55, 0.98]],
+});
+let L = DEFAULT();
+const validPts = (a, n) => Array.isArray(a) && a.length >= n && a.every(p => Array.isArray(p) && p.length === 2 && p.every(v => Number.isFinite(v) && v >= 0 && v <= 1));
+try { const s = JSON.parse(localStorage.getItem("flowlens-demo-layout") || "null");
+  if (s && validPts(s.door, 3) && validPts(s.line, 2) && s.line.length === 2 && validPts(s.queue, 3)) L = s; } catch { }
+const saveLayout = () => { try { localStorage.setItem("flowlens-demo-layout", JSON.stringify(L)); } catch { } };
+
+function inPoly(x, y, poly) { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi) c = !c; } return c; }
+
+/* ---------------------------------------------------------------- analytics state */
+let A;
+function resetStats() {
+  A = { tracks: new Map(), nextId: 1, entered: 0, left: 0, lin: 0, lout: 0, waits: [], log: [] };
+  renderKpis(); $("log").innerHTML = `<div class="note">Events appear as people pass the door and line.</div>`;
+}
+function event(text) {
+  A.log.unshift({ t: Date.now(), text }); A.log.length = Math.min(A.log.length, 40);
+  $("log").innerHTML = A.log.map(e => `<div><time>${new Date(e.t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time><span>${e.text}</span></div>`).join("");
+}
+const fmt = s0 => { if (s0 == null) return "–"; const s = Math.round(s0); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`; };
+let AR = 16 / 9;   // video aspect ratio, for distances in normalised coordinates
+
+/* simple tracker: IoU match, then distance gated by body size; motion-only, no appearance */
+function iou(a, b) { const x1 = Math.max(a[0], b[0]), y1 = Math.max(a[1], b[1]), x2 = Math.min(a[2], b[2]), y2 = Math.min(a[3], b[3]); const i = Math.max(0, x2 - x1) * Math.max(0, y2 - y1); return i / ((a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - i + 1e-9); }
+function track(boxes, now) {
+  const tr = [...A.tracks.values()], used = new Set();
+  const pairs = [];
+  boxes.forEach((b, i) => tr.forEach(t => {
+    const s = iou(b, t.box), fx = (b[0] + b[2]) / 2, fy = b[3], d = Math.hypot((fx - t.foot[0]) * AR, fy - t.foot[1]), h = t.box[3] - t.box[1];
+    const gate = Math.max(0.08, 0.6 * h) + 0.15 * Math.min(1, (now - t.seen) / 1000);
+    if (s > 0.15 || d < gate) pairs.push([s > 0.15 ? 1 + s : 1 - d / gate, i, t]);
+  }));
+  pairs.sort((a, b) => b[0] - a[0]);
+  const matched = new Set();
+  for (const [, i, t] of pairs) { if (used.has(i) || matched.has(t.id)) continue; used.add(i); matched.add(t.id); update(t, boxes[i], now); }
+  boxes.forEach((b, i) => { if (!used.has(i)) { const t = { id: A.nextId++, box: b, foot: [(b[0] + b[2]) / 2, b[3]], first: now, seen: now, frames: 0, side: 0, early: false, recent: [], qEnter: null, qLeft: null, counted: false }; A.tracks.set(t.id, t); update(t, b, now); } });
+  for (const t of tr) if (now - t.seen > 1200) finalise(t, now);
+}
+function update(t, b, now) {
+  const f = [(b[0] + b[2]) / 2, b[3]];
+  const move = Math.hypot((f[0] - t.foot[0]) * AR, f[1] - t.foot[1]), a = Math.min(1, 0.55 + move / 0.04);
+  t.foot = [t.foot[0] + a * (f[0] - t.foot[0]), t.foot[1] + a * (f[1] - t.foot[1])];
+  t.box = b; t.seen = now; t.frames++;
+  // door: touched by any of 3 samples along the box bottom
+  const w = b[2] - b[0], inDoor = [[f[0], f[1]], [b[0] + .15 * w, b[3]], [b[2] - .15 * w, b[3]]].some(([x, y]) => inPoly(x, y, L.door));
+  t.recent.push(inDoor); if (t.recent.length > 6) t.recent.shift();
+  if (t.frames <= 6 && inDoor) t.early = true;
+  if (!t.counted && t.frames >= 3 && t.early) { t.counted = true; A.entered++; event("Door: entered"); }
+  // line: change of side outside a dead-band
+  const [p, q] = L.line, dx = (q[0] - p[0]) * AR, dy = q[1] - p[1], len = Math.hypot(dx, dy) || 1;
+  const d = (dx * (t.foot[1] - p[1]) - dy * (t.foot[0] - p[0]) * AR) / len, along = (((t.foot[0] - p[0]) * AR) * dx + (t.foot[1] - p[1]) * dy) / (len * len);
+  if (along > -0.05 && along < 1.05) { const s = d > 0.03 ? 1 : d < -0.03 ? -1 : 0;
+    if (s && t.side && s !== t.side && t.frames >= 2) { if (s > 0) { A.lin++; event("Line: in"); } else { A.lout++; event("Line: out"); } }
+    if (s) t.side = s; }
+  // queue dwell with 1 s exit grace
+  const inQ = inPoly(t.foot[0], t.foot[1], L.queue);
+  if (inQ) { if (t.qEnter == null) t.qEnter = now; t.qLeft = null; }
+  else if (t.qEnter != null) { if (t.qLeft == null) t.qLeft = now; else if (now - t.qLeft > 1000) closeQueue(t); }
+}
+function closeQueue(t) { const s = ((t.qLeft ?? t.seen) - t.qEnter) / 1000; if (s >= 1.5) { A.waits.push(s); event(`Queue: waited ${fmt(s)}`); } t.qEnter = t.qLeft = null; }
+function finalise(t) {
+  if (t.qEnter != null) closeQueue(t);
+  if (t.frames >= 3 && t.recent.some(Boolean)) { A.left++; event("Door: left"); }
+  A.tracks.delete(t.id);
+}
+
+/* ---------------------------------------------------------------- model */
+async function loadModel() {
+  if (session) return;
+  $("sModel").textContent = "model: downloading…";
+  let gpu = false;
+  try { gpu = !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch { }
+  ort.env.wasm.wasmPaths = new URL("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/", location.href).href;
+  for (const ep of gpu ? ["webgpu", "wasm"] : ["wasm"]) {
+    try { session = await ort.InferenceSession.create("yolo11n.onnx", { executionProviders: [ep] }); backend = ep; break; }
+    catch (e) { console.warn(`${ep} failed, trying the next backend`, e); }
+  }
+  if (!session) { $("sModel").textContent = "model: failed to load - try another browser"; throw new Error("no backend"); }
+  $("sModel").textContent = "model: YOLO11n · person only"; $("sBackend").textContent = `backend: ${backend === "webgpu" ? "WebGPU (graphics card)" : "WebAssembly (CPU)"}`;
+}
+async function detect() {
+  const vw = video.videoWidth, vh = video.videoHeight; if (!vw) return [];
+  const s = Math.min(IMG / vw, IMG / vh), nw = Math.round(vw * s), nh = Math.round(vh * s), px = (IMG - nw) / 2, py = (IMG - nh) / 2;
+  shown.width = vw; shown.height = vh; sctx.drawImage(video, 0, 0, vw, vh);   // freeze this frame for display
+  AR = vw / vh;
+  pctx.fillStyle = "#727272"; pctx.fillRect(0, 0, IMG, IMG); pctx.drawImage(shown, px, py, nw, nh);
+  const d = pctx.getImageData(0, 0, IMG, IMG).data, N = IMG * IMG, input = new Float32Array(3 * N);
+  for (let i = 0; i < N; i++) { input[i] = d[i * 4] / 255; input[N + i] = d[i * 4 + 1] / 255; input[2 * N + i] = d[i * 4 + 2] / 255; }
+  const out = await session.run({ [session.inputNames[0]]: new ort.Tensor("float32", input, [1, 3, IMG, IMG]) });
+  const o = out[session.outputNames[0]], A2 = o.dims[2], data = o.data, boxes = [];
+  for (let i = 0; i < A2; i++) {
+    const sc = data[4 * A2 + i]; if (sc < CONF) continue;
+    const cx = data[i], cy = data[A2 + i], w = data[2 * A2 + i], h = data[3 * A2 + i];
+    boxes.push([((cx - w / 2) - px) / nw, ((cy - h / 2) - py) / nh, ((cx + w / 2) - px) / nw, ((cy + h / 2) - py) / nh, sc]);
+  }
+  boxes.sort((a, b) => b[4] - a[4]);
+  const keep = []; for (const b of boxes) if (keep.every(k => iou(k, b) < IOU)) keep.push(b);
+  return keep.map(b => [Math.max(0, b[0]), Math.max(0, b[1]), Math.min(1, b[2]), Math.min(1, b[3])]);
+}
+
+/* ---------------------------------------------------------------- drawing */
+function fit() { const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1; const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } ctx.setTransform(dpr, 0, 0, dpr, 0, 0); return [r.width, r.height]; }
+function draw() {
+  const [W, H] = fit();
+  ctx.clearRect(0, 0, W, H);
+  if (shown.width) {
+    ctx.drawImage(shown, 0, 0, W, H);   // the frame the detections belong to: masks never lag the picture
+    const mode = $("privacy").value;
+    for (const b of dets) {
+      const x = b[0] * W, y = b[1] * H, w = (b[2] - b[0]) * W, h = (b[3] - b[1]) * H; if (w < 2 || h < 2) continue;
+      const pad = w * .1, X = Math.max(0, x - pad), Y = Math.max(0, y - pad), Wd = Math.min(W - X, w + 2 * pad), Hd = Math.min(H - Y, h + 2 * pad);
+      if (mode === "dots") { ctx.fillStyle = "#0b0f15"; ctx.fillRect(X, Y, Wd, Hd); }
+      else {
+        const cells = mode === "blur" ? 6 : 8; tiny.width = cells; tiny.height = Math.max(1, Math.round(cells * Hd / Wd));
+        const sx = shown.width / W, sy = shown.height / H;
+        tctx.drawImage(shown, X * sx, Y * sy, Wd * sx, Hd * sy, 0, 0, tiny.width, tiny.height);
+        ctx.imageSmoothingEnabled = mode === "blur"; ctx.drawImage(tiny, X, Y, Wd, Hd); ctx.imageSmoothingEnabled = true;
+      }
+      ctx.strokeStyle = "rgba(233,238,243,.9)"; ctx.lineWidth = 2; const k = Math.min(16, w / 4, h / 4);
+      for (const [cx, cy, sx2, sy2] of [[X, Y, 1, 1], [X + Wd, Y, -1, 1], [X, Y + Hd, 1, -1], [X + Wd, Y + Hd, -1, -1]]) { ctx.beginPath(); ctx.moveTo(cx, cy + sy2 * k); ctx.lineTo(cx, cy); ctx.lineTo(cx + sx2 * k, cy); ctx.stroke(); }
+    }
+  }
+  const P = ([x, y]) => [x * W, y * H];
+  const poly = (pts, color, fill, dash) => { ctx.beginPath(); pts.map(P).forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.setLineDash(dash || []); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]); };
+  poly(L.door, "#e8a33a", "rgba(232,163,58,.16)"); poly(L.queue, "#34c08f", "rgba(52,192,143,.12)", [8, 5]);
+  const [a, b] = L.line.map(P); ctx.strokeStyle = "#f0774c"; ctx.lineWidth = 3.5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke();
+  const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+  ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + nx * 26, my + ny * 26); ctx.stroke();
+  ctx.fillStyle = "#f0774c"; ctx.beginPath(); ctx.moveTo(mx + nx * 34, my + ny * 34); ctx.lineTo(mx + nx * 24 - ny * 6, my + ny * 24 + nx * 6); ctx.lineTo(mx + nx * 24 + ny * 6, my + ny * 24 - nx * 6); ctx.fill();
+  ctx.font = "600 12px IBM Plex Mono, monospace"; ctx.fillStyle = "#e8edf2"; ctx.fillText("IN", mx + nx * 42 - 8, my + ny * 42 + 4);
+  for (const t of A.tracks.values()) { const [x, y] = P(t.foot); ctx.fillStyle = "#0b0f15"; ctx.beginPath(); ctx.arc(x, y, 6, 0, 7); ctx.fill(); ctx.fillStyle = t.qEnter != null ? "#34c08f" : "#5b9cff"; ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 7); ctx.fill();
+    if (t.qEnter != null) { ctx.fillStyle = "#e8edf2"; ctx.fillText(fmt((performance.now() - t.qEnter) / 1000), x + 8, y - 8); } }
+  const label = (pts, text, color) => { const [x, y] = P(pts[0]); ctx.font = "600 12px IBM Plex Mono, monospace"; const w = ctx.measureText(text).width + 14; ctx.fillStyle = "rgba(8,11,16,.85)"; ctx.fillRect(x + 4, y + 4, w, 22); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(x + 4, y + 4, w, 22); ctx.fillStyle = "#e8edf2"; ctx.fillText(text, x + 11, y + 19); };
+  label(L.door, `Door · in ${A.entered} · out ${A.left}`, "#e8a33a"); label(L.queue, `Queue · ${queueNow().length}`, "#34c08f");
+  for (const k of ["door", "line", "queue"]) for (const p of L[k]) { const [x, y] = P(p); ctx.fillStyle = "#e8edf2"; ctx.strokeStyle = { door: "#e8a33a", line: "#f0774c", queue: "#34c08f" }[k]; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 6, 0, 7); ctx.fill(); ctx.stroke(); }
+}
+const queueNow = () => [...A.tracks.values()].filter(t => t.qEnter != null && t.qLeft == null);
+function renderKpis() {
+  const q = queueNow(), now = performance.now();
+  $("kView").textContent = dets.length; $("kQueue").textContent = q.length;
+  $("kIn").textContent = A.entered; $("kOut").textContent = A.left; $("kLin").textContent = A.lin; $("kLout").textContent = A.lout;
+  $("kWait").textContent = q.length ? fmt(Math.max(...q.map(t => (now - t.qEnter) / 1000))) : "–";
+  $("kAvg").textContent = A.waits.length ? fmt(A.waits.reduce((a, b) => a + b, 0) / A.waits.length) : "–";
+}
+
+/* ---------------------------------------------------------------- loop */
+async function loop() {
+  if (!running) return;
+  if (!busy && video.readyState >= 2) {
+    busy = true;
+    try { const t0 = performance.now(); dets = await detect(); track(dets, performance.now());
+      fpsT.push(performance.now()); fpsT = fpsT.filter(t => t > t0 - 2000); $("sFps").textContent = `${(fpsT.length / 2).toFixed(1)} fps · ${Math.round(performance.now() - t0)} ms per frame`; }
+    catch (e) { console.error(e); }
+    busy = false;
+  }
+  draw(); renderKpis(); requestAnimationFrame(loop);
+}
+async function start(srcSetter) {
+  $("empty").innerHTML = `<div><b>Loading the detector…</b>About 10 MB, downloaded once.</div>`;
+  try { if (typeof ort === "undefined") throw new Error("ORT script blocked"); await loadModel(); }
+  catch { $("sModel").textContent = "model: unavailable"; $("empty").innerHTML = `<div><b>The detector could not start</b>Check your connection (the model and runtime download once), or try a recent Chrome, Edge or Firefox.</div>`; return; }
+  try { await srcSetter(); await video.play(); }
+  catch (e) {
+    const why = e.name === "NotAllowedError" ? "Camera permission was declined. Allow it in the address bar and try again."
+      : e.name === "NotFoundError" || e.name === "OverconstrainedError" ? "No camera was found on this device."
+      : e.name === "NotReadableError" ? "The camera is busy - close other apps that use it."
+      : e.name === "NoCamera" ? "This browser can't open a camera here (it needs https or localhost)."
+      : e.name === "NotSupportedError" ? "This browser can't play that video file. Try an MP4 (H.264) or WebM."
+      : "Something went wrong opening the source.";
+    $("empty").style.display = "grid"; $("empty").innerHTML = `<div><b>Could not open the camera or video</b>${why}</div>`; return; }
+  resetStats(); shown.width = 0;
+  $("empty").style.display = "none";
+  const ar = (video.videoWidth || 16) / (video.videoHeight || 9); $("stage").style.aspectRatio = `${ar}`;
+  if (!running) { running = true; requestAnimationFrame(loop); }
+}
+let fileUrl = null;
+$("bCam").onclick = () => start(async () => {
+  if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error("no camera API"), { name: "NoCamera" });
+  if (fileUrl) { URL.revokeObjectURL(fileUrl); fileUrl = null; video.removeAttribute("src"); }
+  video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+});
+$("fVid").onchange = e => { const f = e.target.files[0]; if (!f) return; start(async () => {
+  if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
+  if (fileUrl) URL.revokeObjectURL(fileUrl);
+  fileUrl = URL.createObjectURL(f); video.src = fileUrl; e.target.value = ""; }); };
+$("bReset").onclick = () => resetStats();
+
+/* ---------------------------------------------------------------- drag shape points */
+let drag = null;
+cv.addEventListener("pointerdown", e => {
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+  let best = null, bd = 18;
+  for (const k of ["door", "line", "queue"]) L[k].forEach((p, i) => { const d = Math.hypot((p[0] - x) * r.width, (p[1] - y) * r.height); if (d < bd) { bd = d; best = [k, i]; } });
+  if (best) { drag = best; cv.setPointerCapture(e.pointerId); }
+});
+cv.addEventListener("pointermove", e => {
+  const r = cv.getBoundingClientRect(), x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+  if (drag) { L[drag[0]][drag[1]] = [x, y]; if (!running) draw(); return; }
+  cv.style.cursor = ["door", "line", "queue"].some(k => L[k].some(p => Math.hypot((p[0] - x) * r.width, (p[1] - y) * r.height) < 18)) ? "grab" : "default";
+});
+cv.addEventListener("pointerup", () => { if (drag) { drag = null; saveLayout(); } });
+cv.addEventListener("pointercancel", () => { drag = null; });
+$("bLayout").onclick = () => { L = DEFAULT(); saveLayout(); if (!running) draw(); };
+
+resetStats(); draw(); addEventListener("resize", () => { if (!running) draw(); });
+</script>
+</body>
+</html>

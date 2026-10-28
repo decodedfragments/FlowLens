@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlowLens Hub</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --surface-2: #232321; --surface-3: #2c2c2a;
+    --border: #2f2f2c; --border-strong: #3d3d39; --grid: #2a2a28;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8d8c84;
+    --accent: #3987e5; --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+    --c-queue: #3987e5; --c-door: #c98500; --c-area: #199e70; --c-line: #d95926; --c-service: #9085e9;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--page); color: var(--text-primary); font: 13px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  button, select, input { font: inherit; color: inherit; }
+  header { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 8px; padding: 10px 20px;
+    background: rgba(13,13,13,.9); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 15px; }
+  .brand .logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #3987e5, #199e70); }
+  .event { font-size: 15px; color: var(--text-secondary); margin-right: 6px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--critical); flex: none; }
+  .dot.ok { background: var(--good); } .dot.warn { background: var(--warning); } .dot.off { background: #55554f; }
+  .spacer { flex: 1; }
+  .btn { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--text-primary); text-decoration: none; }
+  .btn:hover { background: var(--surface-3); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn.danger { color: #ff8a80; }
+  .btn.sm { height: 28px; padding: 0 9px; font-size: 12px; }
+  input[type=text], input[type=password] { height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); padding: 0 8px; min-width: 0; width: 100%; }
+  label.chk { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+  main { padding: 16px 20px 28px; display: grid; gap: 16px; max-width: 1800px; margin: 0 auto; }
+  @media (max-width: 640px) { main { padding: 12px 16px 24px; } header { padding: 10px 16px; } }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; min-width: 0; }
+  .card h2 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+  .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .note { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+  .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 560px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; min-width: 0; }
+  .kpi .v { font-size: 30px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi .l { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .kpi.hero .v { color: #8fc0ff; }
+  .top { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+  @media (max-width: 1180px) { .top { grid-template-columns: 1fr; } }
+  aside { display: grid; gap: 16px; min-width: 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 1000px) { .grid2 { grid-template-columns: 1fr; } }
+
+  /* site map */
+  .map { position: relative; width: 100%; background: #111110; border-radius: 8px; overflow: hidden; user-select: none; }
+  .map img { display: block; width: 100%; height: auto; opacity: .92; }
+  .map canvas, .map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .map canvas { pointer-events: none; }
+  .map.placing svg { cursor: crosshair; }
+  .layers { display: inline-flex; gap: 12px; flex-wrap: wrap; }
+  .board { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .area { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: grid; gap: 6px; }
+  .area .n { font-size: 34px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .area .t { font-weight: 600; }
+  .bar { height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+  .bar i.warn { background: var(--warning); } .bar i.crit { background: var(--critical); }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--text-secondary); font-size: 12px; }
+  .meta b { color: var(--text-primary); }
+  .empty { color: var(--text-muted); padding: 6px 0; }
+
+  .cams { display: grid; gap: 2px; max-height: 420px; overflow-y: auto; }
+  .cam { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--border); }
+  .cam:last-child { border-bottom: 0; }
+  .cam .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cam .sub { grid-column: 2 / 4; color: var(--text-muted); font-size: 12px; }
+  .cam .iv { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .tag { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+  .log { max-height: 320px; overflow-y: auto; }
+  .log div { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; align-items: baseline; }
+  .log div:last-child { border-bottom: 0; }
+  .log time { color: var(--text-muted); font-variant-numeric: tabular-nums; flex: none; }
+  .st { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; }
+  .st i { font-style: normal; font-size: 10px; }
+  .st.ok i { color: var(--good); } .st.warning i { color: var(--warning); } .st.critical i { color: var(--critical); }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 500; font-size: 12px; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .flow { display: grid; grid-template-columns: minmax(0, 1fr) 160px 50px; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .flow:last-child { border-bottom: 0; }
+  .flow .bar { height: 8px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button { height: 30px; padding: 0 12px; border: 0; background: var(--surface-2); cursor: pointer; border-right: 1px solid var(--border); color: var(--text-secondary); }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--surface-3); color: var(--text-primary); box-shadow: inset 0 -2px 0 var(--accent); }
+  .chart { position: relative; height: 220px; }
+  .chart canvas { width: 100%; height: 100%; display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; color: var(--text-secondary); font-size: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+  .legend i.sq { height: 10px; width: 10px; border-radius: 3px; }
+  .tip { position: fixed; z-index: 80; pointer-events: none; display: none; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.45); min-width: 130px; }
+  .tip .t { color: var(--text-muted); margin-bottom: 4px; }
+  .tip .r { display: flex; align-items: center; gap: 6px; }
+  .tip .r b { margin-left: auto; padding-left: 14px; font-variant-numeric: tabular-nums; }
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--surface-3); border: 1px solid var(--border-strong); padding: 9px 16px; border-radius: 9px; display: none; z-index: 90; }
+  .modal { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.7); display: grid; place-items: center; padding: 16px; }
+  .modal[hidden] { display: none; }
+  .modal-box { width: min(720px, 100%); max-height: 100%; overflow: auto; background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 14px; padding: 18px; display: grid; gap: 18px; }
+  .sec { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .sec:last-child { border-bottom: 0; padding-bottom: 0; }
+  .sec h3 { margin: 0; font-size: 14px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row > input { flex: 1; }
+  code.block { display: block; background: #0f0f0e; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font: 12px/1.5 ui-monospace, Consolas, monospace; color: var(--text-secondary); white-space: pre-wrap; word-break: break-all; }
+  footer { color: var(--text-muted); font-size: 12px; padding: 0 20px 24px; max-width: 1800px; margin: 0 auto; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand"><span class="logo"></span>FlowLens Hub</span>
+  <span class="event" id="evName">—</span>
+  <span class="pill" id="pConn"><span class="dot"></span>connecting…</span>
+  <span class="pill" id="pCams"><span class="dot off"></span>cameras —</span>
+  <span class="pill" id="pSince">since —</span>
+  <span class="spacer"></span>
+  <a class="btn" href="/api/export.csv?scope=event">Export event CSV</a>
+  <a class="btn" href="/api/export.csv?scope=cameras">Per-camera CSV</a>
+  <button class="btn primary" id="openSettings">Settings</button>
+</header>
+
+<main>
+  <div class="kpis" id="kpis"></div>
+  <div class="top">
+    <section class="card" id="mapCard">
+      <div class="card-head"><h2 id="mapTitle">Site</h2><span class="spacer"></span><span class="layers" id="mapLayers"></span></div>
+      <div id="mapBody"></div>
+    </section>
+    <aside>
+      <section class="card"><div class="card-head"><h2>Alerts</h2></div><div class="log" id="alerts"></div></section>
+      <section class="card"><div class="card-head"><h2>Cameras</h2><span class="spacer"></span><span class="note" id="camNote"></span></div><div class="cams" id="cams"></div></section>
+    </aside>
+  </div>
+
+  <div class="grid2">
+    <section class="card"><div class="card-head"><h2>Queues across the site</h2></div><div class="tablewrap"><table id="qTable"></table></div></section>
+    <section class="card"><div class="card-head"><h2>Movement between areas</h2><span class="note">since the event started</span></div><div id="flows"></div></section>
+  </div>
+
+  <section class="card">
+    <div class="card-head"><h2>Trends</h2><span class="spacer"></span>
+      <div class="seg" id="ranges"><button data-r="60" class="on">1 h</button><button data-r="360">6 h</button><button data-r="1440">24 h</button><button data-r="10080">7 days</button></div></div>
+    <div class="grid2">
+      <div><div class="card-head"><h2>People inside the site</h2></div><div class="chart"><canvas id="cInside"></canvas></div><div class="legend" id="lInside"></div></div>
+      <div><div class="card-head"><h2>Entries &amp; exits</h2></div><div class="chart"><canvas id="cFlow"></canvas></div><div class="legend" id="lFlow"></div></div>
+      <div><div class="card-head"><h2>Occupancy by area</h2></div><div class="chart"><canvas id="cAreas"></canvas></div><div class="legend" id="lAreas"></div></div>
+      <div><div class="card-head"><h2>People waiting in queues</h2></div><div class="chart"><canvas id="cQueue"></canvas></div><div class="legend" id="lQueue"></div></div>
+    </div>
+  </section>
+
+  <div class="grid2">
+    <section class="card"><div class="card-head"><h2>Entrances</h2><span class="note">site entrance counters, since the event started</span></div><div class="tablewrap"><table id="eTable"></table></div></section>
+    <section class="card"><div class="card-head"><h2>Activity</h2><span class="note">anonymous events from all cameras</span></div><div class="log" id="events"></div></section>
+  </div>
+</main>
+<footer>FlowLens Hub receives counts and aggregates only. No video, images or identities ever reach it. Each camera keeps working and buffering on its own if the hub or network goes down.</footer>
+
+<div class="modal" id="settings" hidden>
+  <div class="modal-box">
+    <div class="card-head" style="margin:0"><h2 style="font-size:15px;color:var(--text-primary)">Hub settings</h2><span class="spacer"></span><button class="btn" id="closeSettings">Close</button></div>
+    <div class="sec">
+      <h3>Event or site name</h3>
+      <div class="row"><input type="text" id="sName" maxlength="80"><button class="btn primary" id="sNameSave">Save</button></div>
+    </div>
+    <div class="sec">
+      <h3>Connect a camera</h3>
+      <div class="note">On each camera computer, open FlowLens → <b>Site hub</b>, and enter this address and token. Or start it from PowerShell:</div>
+      <code class="block" id="sCmd"></code>
+      <div class="row"><span class="tag" style="width:70px">Address</span><input type="text" id="sUrl" readonly><button class="btn sm" data-copy="sUrl">Copy</button></div>
+      <div class="row"><span class="tag" style="width:70px">Token</span><input type="text" id="sToken" readonly><button class="btn sm" data-copy="sToken">Copy</button><button class="btn sm danger" id="sNewToken">New token</button></div>
+      <div class="note">A new token disconnects every camera until they are given the new one.</div>
+    </div>
+    <div class="sec">
+      <h3>Floor plan <span class="tag">optional</span></h3>
+      <div class="note">Any PNG, JPG or WebP works: a venue plan, a store layout, a booth map or a photo of a hand sketch. Without one, the hub shows a board of areas instead. After uploading, map each camera from its own FlowLens page (Floor plan mapping), or drag unmapped cameras onto the plan with <b>Place cameras</b>.</div>
+      <div class="row"><input type="file" id="sPlan" accept="image/png,image/jpeg,image/webp"><button class="btn danger" id="sPlanDel">Remove floor plan</button></div>
+    </div>
+    <div class="sec">
+      <h3>Dashboard PIN</h3>
+      <div class="note">Other devices (phones, other laptops) are asked for this PIN once - type any user name and the PIN. This computer never needs it, and cameras use the token instead.</div>
+      <div class="row"><input type="password" id="sPin" placeholder="leave empty for no PIN" maxlength="32"><button class="btn" id="sPinSave">Save PIN</button></div>
+    </div>
+    <div class="sec">
+      <h3>Start a new event</h3>
+      <div class="note">Sets entries, exits and people inside back to zero from now. Earlier data stays in the database and the per-camera CSV.</div>
+      <div class="row"><button class="btn danger" id="sReset">Start new event</button></div>
+    </div>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const PALETTE = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"];
+const TYPE_COLOR = { queue: "#3987e5", door: "#c98500", area: "#199e70", service: "#9085e9" };
+const STATUS = { ok: ["✓", "Normal"], warning: ["▲", "Busy"], critical: ["■", "Over limit"] };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const fmtDur = s0 => { if (s0 == null) return "–"; const s = Math.round(s0);
+  return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s` : `${Math.floor(s / 3600)}h ${Math.floor(s % 3600 / 60)}m`; };
+const fmtClock = (ts, sec) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", ...(sec ? { second: "2-digit" } : {}) });
+const fmtN = v => v == null || !Number.isFinite(Number(v)) ? "–" : Number(v);   // numbers only: never markup
+const tip = $("tip");
+const forgetArmed = {};
+let st = {}, settings = null, range = 60, series = null, placing = null, layers = { heat: true, zones: true, cover: true };
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", "X-FlowLens": "1", ...(opts.headers || {}) } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+function toast(m) { const t = $("toast"); t.textContent = m; t.style.display = "block"; clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = "none", 2600); }
+function fitCanvas(c) {
+  const r = c.getBoundingClientRect(), d = devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(r.width * d)), h = Math.max(1, Math.round(r.height * d));
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const ctx = c.getContext("2d"); ctx.setTransform(d, 0, 0, d, 0, 0); return [ctx, r.width, r.height];
+}
+function showTip(html, x, y) { tip.innerHTML = html; tip.style.display = "block"; const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.min(innerWidth - w - 8, x + 14) + "px"; tip.style.top = Math.max(8, Math.min(innerHeight - h - 8, y + 14)) + "px"; }
+const hideTip = () => tip.style.display = "none";
+function statusTag(k) { if (!STATUS[k]) k = "ok"; const [i, l] = STATUS[k]; return `<span class="st ${k}"><i>${i}</i>${l}</span>`; }
+function twoClick(btn, label, fn) {
+  btn.onclick = () => { if (!btn.dataset.armed) { btn.dataset.armed = 1; const old = btn.textContent; btn.textContent = label; setTimeout(() => { delete btn.dataset.armed; btn.textContent = old; }, 3000); return; }
+    delete btn.dataset.armed; Promise.resolve().then(fn).catch(err => toast(err.message)); };
+}
+
+/* ======================================================================== header + kpis */
+function renderTop() {
+  $("evName").textContent = st.event?.name || "";
+  document.title = `${st.event?.name || "Site"} · FlowLens Hub`;
+  const k = st.kpis || {};
+  $("pCams").innerHTML = `<span class="dot ${k.cameras ? (k.cameras_online === k.cameras ? "ok" : "warn") : "off"}"></span>cameras ${k.cameras_online ?? 0}/${k.cameras ?? 0} online`;
+  $("pSince").textContent = st.event ? `event since ${new Date(st.event.started_at * 1000).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}` : "";
+  const tiles = [
+    [k.inside ?? 0, "Inside the site now", "hero"], [k.entries ?? 0, "Entries"], [k.exits ?? 0, "Exits"],
+    [k.in_view ?? 0, "People seen by cameras now"], [fmtDur(k.longest_wait_s), "Longest queue wait"], [k.alerts ?? 0, "Active alerts"],
+  ];
+  $("kpis").innerHTML = tiles.map(([v, l, c]) => `<div class="kpi ${c || ""}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+}
+
+/* ======================================================================== site map / board */
+const RAMP = ["#104281", "#256abf", "#5598e7", "#9ec5f4", "#cde2fb"].map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+function ramp(v) { const p = clamp(v) * (RAMP.length - 1), i = Math.min(RAMP.length - 2, Math.floor(p)), f = p - i; return RAMP[i].map((c, k) => Math.round(c + (RAMP[i + 1][k] - c) * f)); }
+let mapBuilt = null;
+function buildMap() {
+  const f = st.floor;
+  const key = f ? "plan" + f.version : "board";
+  if (mapBuilt === key) return;
+  mapBuilt = key;
+  if (f) {
+    $("mapTitle").textContent = "Site map";
+    $("mapLayers").innerHTML = `<label class="chk"><input type="checkbox" data-l="heat" ${layers.heat ? "checked" : ""}> Heatmap</label>
+      <label class="chk"><input type="checkbox" data-l="zones" ${layers.zones ? "checked" : ""}> Zones &amp; lines</label>
+      <label class="chk"><input type="checkbox" data-l="cover" ${layers.cover ? "checked" : ""}> Camera coverage</label>
+      <button class="btn sm" id="placeBtn">Place cameras</button>`;
+    $("mapBody").innerHTML = `<div class="map" id="map"><img id="planImg" src="/api/floorplan?v=${f.version}" alt="Floor plan"><canvas id="mapHeat"></canvas><svg id="mapSvg"></svg></div>
+      <div class="note" id="mapHint" style="margin-top:8px"></div>`;
+    $("planImg").onload = renderMap;
+    $("mapLayers").querySelectorAll("input").forEach(i => i.onchange = () => { layers[i.dataset.l] = i.checked; renderMap(); });
+    $("placeBtn").onclick = () => {
+      if (placing) { placing = null; return renderMap(); }
+      const next = (st.cameras || []).find(c => !c.mapped);
+      if (!next) return toast("Every camera is already mapped from its own page");
+      placing = next.id; renderMap();
+    };
+    $("mapSvg").onclick = async e => {
+      if (!placing) return;
+      const r = e.currentTarget.getBoundingClientRect(), pos = [clamp((e.clientX - r.left) / r.width), clamp((e.clientY - r.top) / r.height)];
+      try { await api(`/api/nodes/${encodeURIComponent(placing)}`, { method: "PUT", body: JSON.stringify({ pos }) }); const cam = st.cameras.find(c => c.id === placing); if (cam) cam.pos = pos; }
+      catch (err) { toast(err.message); }
+      const rest = st.cameras.filter(c => !c.mapped && !c.pos && c.id !== placing);
+      placing = rest[0]?.id || null; renderMap();
+    };
+  } else {
+    $("mapTitle").textContent = "Areas";
+    $("mapLayers").innerHTML = `<span class="note">Add a floor plan in Settings to see a site map (optional)</span>`;
+    $("mapBody").innerHTML = `<div class="board" id="board"></div>`;
+  }
+}
+const heatOff = document.createElement("canvas");
+function renderMap() {
+  buildMap();
+  if (!st.floor) return renderBoard();
+  const f = st.floor, img = $("planImg"); if (!img || !img.complete) return;
+  const [ctx, W, H] = fitCanvas($("mapHeat")); ctx.clearRect(0, 0, W, H);
+  if (layers.heat && f.heat) {
+    heatOff.width = f.heat.w; heatOff.height = f.heat.h;
+    const o = heatOff.getContext("2d"), id = o.createImageData(f.heat.w, f.heat.h);
+    f.heat.data.forEach((v0, i) => { const v = Math.sqrt(v0), [r, g, b] = ramp(v); id.data.set([r, g, b, v < .04 ? 0 : Math.round(235 * Math.min(1, .25 + v * 1.6))], i * 4); });
+    o.putImageData(id, 0, 0); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; ctx.drawImage(heatOff, 0, 0, W, H);
+  }
+  const svg = $("mapSvg"); svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const P = ([x, y]) => `${(x * W).toFixed(1)},${(y * H).toFixed(1)}`;
+  let s = "";
+  if (layers.cover) for (const c of f.coverage) s += `<polygon points="${c.points.map(P).join(" ")}" fill="#ffffff" fill-opacity=".05" stroke="#ffffff" stroke-opacity=".25" stroke-dasharray="4 5"/>`;
+  if (layers.zones) for (const z of f.shapes) {
+    if (z.kind === "zone") {
+      const col = TYPE_COLOR[z.type] || "#3987e5";
+      s += `<polygon points="${z.points.map(P).join(" ")}" fill="${col}" fill-opacity="${z.type === "door" ? .22 : .14}" stroke="${col}" stroke-width="2" ${z.type === "queue" ? 'stroke-dasharray="7 4"' : ""}><title>${esc(z.camera + " · " + z.name)}</title></polygon>`;
+      if (z.type !== "door" && z.count != null) {
+        const cx = z.points.reduce((a, p) => a + p[0], 0) / z.points.length * W, cy = z.points.reduce((a, p) => a + p[1], 0) / z.points.length * H;
+        s += `<g pointer-events="none"><rect x="${cx - 16}" y="${cy - 12}" width="32" height="24" rx="6" fill="rgba(12,12,12,.85)" stroke="${z.status === "critical" ? "var(--critical)" : z.status === "warning" ? "var(--warning)" : col}"/><text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="13" font-weight="700" fill="#f0efec">${fmtN(z.count)}</text></g>`;
+      }
+    } else {
+      s += `<polyline points="${z.points.map(P).join(" ")}" stroke="#d95926" stroke-width="3" stroke-linecap="round" fill="none"><title>${esc(`${z.camera} · ${z.name}: in ${z.in}, out ${z.out}`)}</title></polyline>`;
+    }
+  }
+  for (const c of st.cameras || []) {
+    let p = c.pos;
+    const cov = f.coverage.find(x => x.id === c.id);
+    if (cov) p = [(cov.points[2][0] + cov.points[3][0]) / 2, (cov.points[2][1] + cov.points[3][1]) / 2];
+    if (!p) continue;
+    const col = c.status === "online" ? "var(--good)" : c.status === "stale" ? "var(--warning)" : "var(--critical)";
+    const x = clamp(p[0]) * W, y = clamp(p[1]) * H, label = `${c.name} · ${c.in_view ?? "–"}`;
+    s += `<g><circle cx="${x}" cy="${y}" r="9" fill="${col}" stroke="#0d0d0d" stroke-width="3"/>
+      <rect x="${x + 12}" y="${y - 12}" width="${label.length * 6.8 + 14}" height="24" rx="6" fill="rgba(12,12,12,.86)"/>
+      <text x="${x + 19}" y="${y + 4}" font-size="12" font-weight="600" fill="#f0efec">${esc(label)}</text></g>`;
+  }
+  svg.innerHTML = s;
+  $("map").classList.toggle("placing", !!placing);
+  const cam = st.cameras?.find(c => c.id === placing);
+  const unmapped = (st.cameras || []).filter(c => !c.mapped).length;
+  $("mapHint").innerHTML = placing ? `Click the plan where <b>${esc(cam?.name || "the camera")}</b> is. <a href="#" id="stopPlace">Done</a>` :
+    `${f.coverage.length} of ${(st.cameras || []).length} cameras mapped to the plan. ${unmapped ? `Map the others from their own FlowLens page (Floor plan mapping), or use <b>Place cameras</b> to drop a marker.` : ""}`;
+  const sp = $("stopPlace"); if (sp) { sp.onclick = e => e.preventDefault(); sp.onpointerdown = e => { e.preventDefault(); placing = null; renderMap(); }; }
+  $("placeBtn").textContent = placing ? "Done placing" : "Place cameras";
+}
+function renderBoard() {
+  const b = $("board"); if (!b) return;
+  const areas = st.areas || [];
+  b.innerHTML = areas.length ? areas.map(a => {
+    const u = a.utilisation, cls = u == null ? "" : u > 1 ? "crit" : u >= .8 ? "warn" : "";
+    return `<div class="area"><div class="t">${esc(a.name)}</div><div class="n">${fmtN(a.now)}</div>
+      ${a.capacity ? `<div class="bar" title="${a.now} of ${a.capacity}"><i class="${cls}" style="width:${Math.min(100, (u || 0) * 100)}%"></i></div><div class="meta">${Math.round((u || 0) * 100)}% of ${a.capacity}</div>` : ""}
+      <div class="meta">${a.zones ? `<span>${a.zones} zone${a.zones > 1 ? "s" : ""}</span>` : ""}${a.flow_in || a.flow_out ? `<span>in <b>${a.flow_in}</b> · out <b>${a.flow_out}</b></span>` : ""}</div>
+      <div class="note">${esc(a.cameras.join(", "))}</div></div>`;
+  }).join("") : `<div class="empty">No areas yet. On each camera, give zones an <b>Area</b> name (e.g. Hall A, Checkout) and set door/line roles. Cameras without area names appear under their own name.</div>`;
+}
+
+/* ======================================================================== side lists */
+function renderSide() {
+  const al = st.alerts || [];
+  $("alerts").innerHTML = al.length ? al.map(a => `<div><time>${fmtClock(a.since)}</time>${statusTag(a.level === "critical" ? "critical" : "warning")}<span>${esc(a.text)}</span></div>`).join("")
+    : `<div class="empty">All clear. Cameras, queues and capacities are within limits.</div>`;
+  const cams = st.cameras || [];
+  $("camNote").textContent = cams.length ? `${cams.filter(c => c.status === "online").length} online` : "";
+  $("cams").innerHTML = cams.length ? cams.map(c => {
+    const dot = c.status === "online" ? (c.camera === "ok" ? "ok" : "warn") : c.status === "stale" ? "warn" : "";
+    const sub = c.status === "offline" ? `offline · last seen ${fmtClock(Date.now() / 1000 - c.age_s)}` :
+      `${fmtN(c.fps)} fps · ${esc(c.device || "")}${c.camera && c.camera !== "ok" ? " · camera problem" : ""}${c.mapped && st.floor ? " · on map" : ""}`;
+    return `<div class="cam"><span class="dot ${dot}"></span><span class="nm">${esc(c.name)}</span><span class="iv">${fmtN(c.in_view)}</span>
+      <span class="sub">${sub}${c.status === "offline" ? ` · <a href="#" data-forget="${esc(c.id)}">forget</a>` : ""}</span></div>`;
+  }).join("") : `<div class="empty">No cameras yet. Open <b>Settings</b> to see how to connect one.</div>`;
+  $("cams").querySelectorAll("[data-forget]").forEach(a => {
+    if (forgetArmed[a.dataset.forget] > Date.now()) a.textContent = "click again to forget";
+    a.onclick = e => e.preventDefault();
+    a.onpointerdown = async e => {
+      e.preventDefault(); const id = a.dataset.forget;
+      if (forgetArmed[id] > Date.now()) {
+        delete forgetArmed[id];
+        try { await api(`/api/nodes/${encodeURIComponent(id)}`, { method: "DELETE" }); toast("Camera removed"); } catch (err) { toast(err.message); }
+        return;
+      }
+      forgetArmed[id] = Date.now() + 4000; a.textContent = "click again to forget";
+    };
+  });
+}
+function renderTables() {
+  const q = st.queues || [];
+  $("qTable").innerHTML = q.length ? `<thead><tr><th>Queue</th><th>Area</th><th>Status</th><th>Now</th><th>Longest wait</th><th>Avg wait</th><th>P90</th><th>Served/h</th></tr></thead><tbody>` +
+    q.map(z => `<tr><td>${esc(z.name)} <span class="tag">${esc(z.camera)}</span></td><td>${esc(z.area)}</td><td>${statusTag(z.status)}</td><td>${fmtN(z.count)}</td>
+      <td>${fmtDur(z.longest_s)}</td><td>${fmtDur(z.avg_s)}</td><td>${fmtDur(z.p90_s)}</td><td>${fmtN(z.visits_hr)}</td></tr>`).join("") + "</tbody>"
+    : `<tbody><tr><td class="empty">No queue zones on any connected camera.</td></tr></tbody>`;
+  const fl = st.flows || [], max = Math.max(1, ...fl.map(f => f.count));
+  $("flows").innerHTML = fl.length ? fl.map(f => `<div class="flow"><span>${esc(f.from)} → <b>${esc(f.to)}</b></span><div class="bar"><i style="width:${f.count / max * 100}%"></i></div><b style="text-align:right">${fmtN(f.count)}</b></div>`).join("")
+    : `<div class="empty">Set door and line roles on the cameras (Site entrance, or Between areas with From/To) to see movement here.</div>`;
+  const en = st.entrances || [];
+  $("eTable").innerHTML = en.length ? `<thead><tr><th>Entrance</th><th>Leads into</th><th>In</th><th>Out</th><th>Net</th></tr></thead><tbody>` +
+    en.map(e => `<tr><td>${esc(e.name)} <span class="tag">${esc(e.camera)} · ${esc(e.kind)}</span></td><td>${esc(e.to_area)}</td><td>${fmtN(e.in)}</td><td>${fmtN(e.out)}</td><td>${e.in - e.out >= 0 ? "+" : ""}${fmtN(e.in - e.out)}</td></tr>`).join("") + "</tbody>"
+    : `<tbody><tr><td class="empty">No site entrances yet. Mark a door zone or line as <b>Site entrance</b> on a camera.</td></tr></tbody>`;
+  const ev = st.events || [];
+  $("events").innerHTML = ev.length ? ev.map(e => `<div><time>${fmtClock(e.t, true)}</time><span>${esc(e.text)}</span></div>`).join("") : `<div class="empty">Waiting for events from cameras.</div>`;
+}
+
+/* ======================================================================== charts */
+function niceStep(v, int) {
+  if (v <= 0) return 1;
+  const p = 10 ** Math.floor(Math.log10(v)), n = v / p;
+  const s = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+  return int ? Math.max(1, Math.round(s)) : s;
+}
+function makeChart(canvas, legend) {
+  const c = { canvas, legend, spec: null };
+  canvas.addEventListener("mousemove", e => { const r = canvas.getBoundingClientRect(); c.mx = e.clientX - r.left; c.cx = e.clientX; c.cy = e.clientY; drawChart(c); });
+  canvas.addEventListener("mouseleave", () => { c.mx = null; hideTip(); drawChart(c); });
+  return c;
+}
+function setChart(c, spec) {
+  c.spec = spec;
+  c.legend.innerHTML = spec.series.length > 1 ? spec.series.map(s => `<span><i class="${spec.type === "bar" ? "sq" : ""}" style="background:${s.color}"></i>${esc(s.name)}</span>`).join("") : "";
+  drawChart(c);
+}
+function drawChart(c) {
+  const [ctx, W, H] = fitCanvas(c.canvas), sp = c.spec;
+  ctx.clearRect(0, 0, W, H);
+  const muted = "#8d8c84", grid = "#2a2a28";
+  ctx.font = "11px Segoe UI, system-ui, sans-serif";
+  const vals = sp ? sp.series.flatMap(s => s.values).filter(v => v != null) : [];
+  if (!sp || !sp.x.length || (!vals.length && !sp.zeroOk)) {
+    ctx.fillStyle = muted; ctx.textAlign = "center"; ctx.fillText(sp?.empty || "No data yet", W / 2, H / 2); ctx.textAlign = "left"; return;
+  }
+  const pad = { l: 44, r: 10, t: 8, b: 24 }, pw = W - pad.l - pad.r, ph = H - pad.t - pad.b, n = sp.x.length;
+  const raw = Math.max(...vals, sp.minMax || 0) * 1.05, stepY = niceStep(raw / 4, sp.intY), ymax = Math.ceil(raw / stepY) * stepY;
+  const y = v => pad.t + ph - v / ymax * ph;
+  const band = pw / n, xc = i => sp.type === "bar" ? pad.l + band * (i + .5) : pad.l + (n === 1 ? pw / 2 : i / (n - 1) * pw);
+  ctx.strokeStyle = grid; ctx.lineWidth = 1; ctx.fillStyle = muted; ctx.textAlign = "right";
+  for (let v = 0; v <= ymax + 1e-9; v += stepY) {
+    const yy = Math.round(y(v)) + .5;
+    ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(W - pad.r, yy); ctx.stroke();
+    ctx.fillText(sp.yFmt ? sp.yFmt(v) : +v.toFixed(1), pad.l - 6, yy + 4);
+  }
+  ctx.textAlign = "center";
+  const step = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(pw / 70))));
+  for (let i = 0; i < n; i += step) ctx.fillText(sp.xFmt(sp.x[i]), clamp(xc(i), pad.l + 16, W - pad.r - 16), H - 6);
+  let hi = null;
+  if (c.mx != null && c.mx >= pad.l && c.mx <= W - pad.r) hi = sp.type === "bar" ? clamp(Math.floor((c.mx - pad.l) / band), 0, n - 1) : Math.round(clamp((c.mx - pad.l) / (pw || 1)) * (n - 1));
+  if (sp.type === "bar") {
+    const m = sp.series.length, gw = Math.min(band * .78, 64), gap = m > 1 ? 2 : 0, bw = Math.max(1, (gw - gap * (m - 1)) / m);
+    if (hi != null) { ctx.fillStyle = "rgba(255,255,255,.04)"; ctx.fillRect(pad.l + band * hi, pad.t, band, ph); }
+    sp.series.forEach((s, k) => {
+      ctx.fillStyle = s.color;
+      s.values.forEach((v, i) => {
+        if (!v) return;
+        const x0 = xc(i) - gw / 2 + k * (bw + gap), y0 = y(v), h = pad.t + ph - y0, r = Math.min(4, bw / 2, h);
+        ctx.beginPath(); ctx.roundRect(x0, y0, bw, h, [r, r, 0, 0]); ctx.fill();
+      });
+    });
+  } else {
+    if (hi != null) { ctx.strokeStyle = "#5a5953"; ctx.beginPath(); ctx.moveTo(xc(hi) + .5, pad.t); ctx.lineTo(xc(hi) + .5, pad.t + ph); ctx.stroke(); }
+    ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    sp.series.forEach(s => {
+      ctx.strokeStyle = s.color; ctx.setLineDash(s.dash ? [5, 4] : []); ctx.beginPath(); let pen = false;
+      s.values.forEach((v, i) => { if (v == null) { pen = false; return; } pen ? ctx.lineTo(xc(i), y(v)) : ctx.moveTo(xc(i), y(v)); pen = true; });
+      ctx.stroke();
+      s.values.forEach((v, i) => { if (v != null && s.values[i - 1] == null && s.values[i + 1] == null) { ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(xc(i), y(v), 2.5, 0, 7); ctx.fill(); } });
+    });
+    ctx.setLineDash([]);
+    if (hi != null) sp.series.forEach(s => {
+      const v = s.values[hi]; if (v == null) return;
+      ctx.fillStyle = s.color; ctx.strokeStyle = "#1a1a19"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(xc(hi), y(v), 4.5, 0, 7); ctx.fill(); ctx.stroke();
+    });
+  }
+  ctx.textAlign = "left";
+  if (hi != null) {
+    showTip(`<div class="t">${esc(sp.tipX ? sp.tipX(sp.x[hi]) : sp.xFmt(sp.x[hi]))}</div>` + sp.series.map(s =>
+      `<div class="r"><i style="width:10px;height:10px;border-radius:3px;background:${s.color};display:inline-block"></i>${esc(s.name)}<b>${s.values[hi] == null ? "–" : (sp.vFmt ? sp.vFmt(s.values[hi]) : s.values[hi])}</b></div>`).join(""), c.cx, c.cy);
+  } else if (c.mx != null) hideTip();
+}
+
+const charts = { inside: makeChart($("cInside"), $("lInside")), flow: makeChart($("cFlow"), $("lFlow")), areas: makeChart($("cAreas"), $("lAreas")), queue: makeChart($("cQueue"), $("lQueue")) };
+function renderCharts() {
+  if (!series) return;
+  const binMin = { 60: 1, 360: 5, 1440: 15, 10080: 60 }[range] || 1, bs = binMin * 60, now = Date.now() / 1000;
+  const first = series.buckets.length ? series.buckets[0].t : now;
+  const from = Math.max(now - range * 60, Math.min(first, now - Math.min(range, 10) * 60));
+  const start = Math.floor(from / bs) * bs, nb = Math.floor((now - start) / bs) + 1;
+  const bins = Array.from({ length: nb }, (_, i) => ({ t: start + i * bs, list: [] }));
+  for (const b of series.buckets) { const i = Math.floor((b.t - start) / bs); if (i >= 0 && i < nb) bins[i].list.push(b); }
+  const x = bins.map(b => b.t), xFmt = t => binMin >= 60 ? new Date(t * 1000).toLocaleString([], { weekday: "short", hour: "2-digit" }) : fmtClock(t);
+  const tipX = t => binMin > 1 ? `${fmtClock(t)}–${fmtClock(t + bs)}` : fmtClock(t);
+  const last = (l, f) => l.length ? f(l[l.length - 1]) : null;
+  const avg = (l, f) => l.length ? +(l.reduce((a, b) => a + f(b), 0) / l.length).toFixed(2) : null;
+  const sum = (l, f) => l.length ? l.reduce((a, b) => a + f(b), 0) : null;
+  setChart(charts.inside, { type: "line", x, xFmt, tipX, minMax: 4, intY: true, yFmt: v => Math.round(v),
+    series: [{ name: "Inside", color: "#3987e5", values: bins.map(b => last(b.list, q => q.inside)) }], empty: "Mark site entrances on cameras to track people inside" });
+  setChart(charts.flow, { type: "bar", x, xFmt, tipX, zeroOk: true, minMax: 2, intY: true, yFmt: v => Math.round(v),
+    series: [{ name: "Entries", color: "#3987e5", values: bins.map(b => sum(b.list, q => q.entries)) }, { name: "Exits", color: "#d95926", values: bins.map(b => sum(b.list, q => q.exits)) }] });
+  const areaNames = [...new Set(series.buckets.flatMap(b => Object.keys(b.areas)))].slice(0, 8);
+  setChart(charts.areas, areaNames.length ? { type: "line", x, xFmt, tipX, minMax: 2, vFmt: v => v.toFixed(1),
+    series: areaNames.map((a, i) => ({ name: a, color: PALETTE[i % 8], values: bins.map(b => b.list.length ? avg(b.list, q => q.areas[a] || 0) : null) })) }
+    : { type: "line", x: [], series: [], empty: "No zones with areas yet" });
+  setChart(charts.queue, { type: "line", x, xFmt, tipX, minMax: 2, vFmt: v => v.toFixed(1),
+    series: [{ name: "In queues", color: "#c98500", values: bins.map(b => avg(b.list, q => q.queue_people)) }], empty: "No queue zones yet" });
+}
+async function loadSeries() { try { series = await api(`/api/series?minutes=${range}`); renderCharts(); } catch { } }
+document.querySelectorAll("#ranges button").forEach(b => b.onclick = () => { range = +b.dataset.r; document.querySelectorAll("#ranges button").forEach(x => x.classList.toggle("on", x === b)); loadSeries(); });
+
+/* ======================================================================== settings */
+async function loadSettings() {
+  settings = await api("/api/settings");
+  const tok = settings.token || "visible on the hub computer only";
+  $("sName").value = settings.event_name; $("sUrl").value = settings.hub_url; $("sToken").value = tok;
+  $("sCmd").textContent = `python app.py --name "Hall A - entrance" --hub ${settings.hub_url} --hub-token ${settings.token || "<token>"}`;
+  $("sNewToken").disabled = $("sPinSave").disabled = !settings.local;
+  $("sPin").value = "";
+  $("sPin").placeholder = !settings.local ? "change the PIN on the hub computer" : settings.pin ? `current PIN: ${settings.pin} - type a new one, or save empty for none` : "no PIN - type one to require it on other devices";
+}
+$("openSettings").onclick = async () => { try { await loadSettings(); $("settings").hidden = false; } catch (e) { toast("Settings unavailable: " + e.message); } };
+$("closeSettings").onclick = () => $("settings").hidden = true;
+document.querySelectorAll("[data-copy]").forEach(b => b.onclick = async () => {
+  const el = $(b.dataset.copy); try { await navigator.clipboard.writeText(el.value); toast("Copied"); } catch { el.select(); toast("Selected - press Ctrl+C"); } });
+$("sNameSave").onclick = async () => { try { await api("/api/settings", { method: "PUT", body: JSON.stringify({ event_name: $("sName").value }) }); toast("Saved"); } catch (e) { toast(e.message); } };
+$("sPinSave").onclick = async () => { try { const v = $("sPin").value; await api("/api/settings", { method: "PUT", body: JSON.stringify({ pin: v }) }); toast(v ? `PIN set to ${v} - other devices will be asked for it` : "PIN removed"); loadSettings(); } catch (e) { toast(e.message); } };
+twoClick($("sNewToken"), "Click again: disconnects all cameras", async () => { await api("/api/settings", { method: "PUT", body: JSON.stringify({ new_token: true }) }); await loadSettings(); toast("New token created - give it to every camera"); });
+twoClick($("sReset"), "Click again to start a new event", async () => { await api("/api/event/reset", { method: "POST" }); toast("New event started"); loadSeries(); });
+$("sPlan").onchange = e => {
+  const file = e.target.files[0]; if (!file) return;
+  const rd = new FileReader();
+  rd.onload = () => { const img = new Image(); img.onload = async () => {
+    try { await api("/api/floorplan", { method: "PUT", body: JSON.stringify({ data_url: rd.result, w: img.naturalWidth || 1600, h: img.naturalHeight || 1000 }) }); toast("Floor plan uploaded"); mapBuilt = null; }
+    catch (err) { toast(err.message); } }; img.src = rd.result; };
+  rd.readAsDataURL(file);
+  e.target.value = "";   // allow choosing the same file again
+};
+twoClick($("sPlanDel"), "Click again to remove", async () => { await api("/api/floorplan", { method: "DELETE" }); toast("Floor plan removed"); mapBuilt = null; });
+
+/* ======================================================================== transport */
+function render() { renderTop(); renderMap(); renderSide(); renderTables(); }
+function connect() {
+  const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
+  ws.onopen = () => $("pConn").innerHTML = `<span class="dot ok"></span>live`;
+  ws.onmessage = e => { try { st = JSON.parse(e.data); render(); } catch (err) { console.error(err); } };
+  ws.onclose = () => { $("pConn").innerHTML = `<span class="dot"></span>reconnecting…`; setTimeout(connect, 1500); };
+}
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { renderMap(); Object.values(charts).forEach(drawChart); }, 80); });
+connect(); loadSeries(); setInterval(loadSeries, 20000);
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# ByteTrack tuned for people at doors / queues on a webcam.
+# Compared with the Ultralytics defaults: keeps lost tracks ~3x longer and accepts
+# looser box overlap between frames, so fast walkers at low FPS keep their ID.
+tracker_type: bytetrack
+track_high_thresh: 0.30   # first-stage association
+track_low_thresh: 0.10    # second stage: re-attach blurred / half-hidden people
+new_track_thresh: 0.40    # start new tracks only on confident boxes (fewer ghosts)
+track_buffer: 90          # frames a lost track is kept for re-matching
+match_thresh: 0.90        # allow small IoU between frames (fast motion)
+fuse_score: True

@@ -1,0 +1,1233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlowLens</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --surface-2: #232321; --surface-3: #2c2c2a;
+    --border: #2f2f2c; --border-strong: #3d3d39; --grid: #2a2a28;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8d8c84;
+    --accent: #3987e5;
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--page); color: var(--text-primary);
+    font: 13px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  button, select, input { font: inherit; color: inherit; }
+  svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- header */
+  header { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 8px;
+    padding: 10px 20px; background: rgba(13,13,13,.9); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 15px; margin-right: 8px; }
+  .brand .logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #3987e5, #199e70); display: grid; place-items: center; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
+    border: 1px solid var(--border); border-radius: 999px; color: var(--text-secondary); font-size: 12px; white-space: nowrap;
+    max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+  .pill.warn { border-color: rgba(250,178,25,.45); color: #f6d48a; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--critical); flex: none; }
+  .dot.ok { background: var(--good); } .dot.warn { background: var(--warning); }
+  .spacer { flex: 1; }
+  .btn { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface-2); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    color: var(--text-primary); text-decoration: none; }
+  .btn:hover { background: var(--surface-3); border-color: var(--border-strong); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.1); }
+  .btn.danger { color: #ff8a80; }
+  .btn.icon { width: 32px; padding: 0; justify-content: center; }
+  .btn:disabled { opacity: .4; cursor: default; }
+  select, input[type=text], input[type=number] { height: 32px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface-2); padding: 0 8px; min-width: 0; }
+  input[type=range] { accent-color: var(--accent); }
+  label.chk { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); cursor: pointer; user-select: none; white-space: nowrap; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  main { padding: 16px 20px 28px; display: grid; gap: 16px; max-width: 1800px; margin: 0 auto; }
+  .top { display: grid; grid-template-columns: minmax(0, 1fr) 372px; gap: 16px; align-items: start; }
+  @media (max-width: 1180px) { .top { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) { main { padding: 12px 16px 24px; } header { padding: 10px 16px; } }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; min-width: 0; }
+  .card h2 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+  .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+
+  /* ---------- camera stage */
+  .stage-card { padding: 0; overflow: hidden; }
+  .tools { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; background: #161615; }
+  .toolgroup { display: inline-flex; padding: 3px; gap: 2px; background: var(--page); border: 1px solid var(--border); border-radius: 10px; }
+  .toolgroup button { height: 30px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); white-space: nowrap; }
+  .toolgroup button:hover { background: var(--surface-2); color: var(--text-primary); }
+  .toolgroup button.on { background: var(--surface-3); color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--border-strong); }
+  .toolgroup button:disabled { opacity: .35; cursor: default; background: transparent; }
+  .tools .sep { width: 1px; height: 24px; background: var(--border); }
+  .layers { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .stage-wrap { position: relative; background: #0a0a0a; }
+  .stage { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; user-select: none; touch-action: none;
+    background-color: #0f0f0e;
+    background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+    background-size: 40px 40px; }
+  .stage > img, .stage > canvas, .stage > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .stage > img { object-fit: fill; opacity: 0; transition: opacity .35s; }
+  .stage > img.ready { opacity: 1; }
+  .stage > canvas { pointer-events: none; }
+  .stage.drawing > svg { cursor: crosshair; }
+  .placeholder { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--text-muted); padding: 24px; pointer-events: none; }
+  .placeholder .box { max-width: 420px; }
+  .placeholder b { color: var(--text-primary); display: block; margin: 10px 0 4px; font-size: 15px; font-weight: 600; }
+  .spinner { width: 26px; height: 26px; border-radius: 50%; border: 3px solid #2c2c2a; border-top-color: var(--accent); animation: spin 1s linear infinite; margin: 0 auto; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .onboard { position: absolute; inset: 0; display: none; place-items: center; pointer-events: none; }
+  .onboard.show { display: grid; }
+  .onboard .box { pointer-events: auto; background: rgba(20,20,19,.92); border: 1px solid var(--border-strong); border-radius: 14px;
+    padding: 18px 20px; max-width: 460px; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+  .onboard h3 { margin: 0 0 6px; font-size: 15px; }
+  .onboard p { margin: 0 0 14px; color: var(--text-secondary); }
+  .onboard .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .hud { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; flex-wrap: wrap; pointer-events: none; max-width: calc(100% - 24px); }
+  .hud span { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 6px; background: rgba(10,10,10,.72);
+    color: #e6e5e1; font-size: 11.5px; backdrop-filter: blur(4px); white-space: nowrap; }
+  .hud .live { font-weight: 700; letter-spacing: .05em; }
+  .hud .live i { width: 7px; height: 7px; border-radius: 50%; background: #e0453a; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  @media (max-width: 640px) { .hud span:nth-child(n+3) { display: none; } }
+  .stage-actions { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; }
+  .stage-actions .btn { background: rgba(10,10,10,.7); border-color: rgba(255,255,255,.12); backdrop-filter: blur(4px); }
+  .hintbar { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12px; flex-wrap: wrap; min-height: 42px; }
+  .hintbar kbd { font: 11px ui-monospace, Consolas, monospace; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-strong); color: var(--text-secondary); }
+  .savebar { display: none; align-items: center; gap: 8px; margin-left: auto; }
+  .savebar.show { display: inline-flex; }
+  .savebar span { color: var(--warning); font-size: 12px; }
+  .modal { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.72); display: grid; place-items: center; padding: 16px; }
+  .modal[hidden] { display: none; }
+  .modal-box { width: min(1500px, 100%); max-height: 100%; overflow: auto; background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 14px; padding: 16px; display: grid; gap: 12px; }
+  .fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 900px) { .fgrid { grid-template-columns: 1fr; } }
+  .fpane { display: grid; gap: 6px; min-width: 0; }
+  .fwrap { position: relative; background: #0f0f0e; border-radius: 8px; overflow: hidden; cursor: crosshair; }
+  .fwrap img { display: block; width: 100%; height: auto; }
+  .fwrap img:not([src]) { min-height: 200px; }
+  .fwrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  details > summary .pill { font-weight: 400; }
+  .stage-wrap:fullscreen { display: grid; place-items: center; background: #000; }
+  .stage-wrap:fullscreen .stage { max-height: 100vh; width: auto; height: 100vh; }
+
+  /* ---------- KPIs */
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  @media (max-width: 1180px) { .kpis { grid-template-columns: repeat(6, 1fr); } }
+  @media (max-width: 760px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 12px; min-width: 0; }
+  .kpi .v { font-size: 25px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi .l { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+  aside { display: grid; gap: 12px; min-width: 0; }
+
+  .item { padding: 11px 0; border-top: 1px solid var(--border); cursor: pointer; }
+  .item:first-child { border-top: 0; padding-top: 0; }
+  .item:hover .name { text-decoration: underline; text-underline-offset: 3px; }
+  .item .row { display: flex; align-items: center; gap: 8px; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .item .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+  .item .big { margin-left: auto; font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--text-secondary); font-size: 12px; margin-top: 4px; }
+  .meta b { color: var(--text-primary); font-weight: 600; }
+  .bar { height: 6px; background: var(--surface-3); border-radius: 3px; margin-top: 7px; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 3px; }
+  .st { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; }
+  .st i { font-style: normal; font-size: 10px; line-height: 1; }
+  .st.ok i { color: var(--good); } .st.warning i { color: var(--warning); } .st.critical i { color: var(--critical); }
+  .empty { color: var(--text-muted); padding: 4px 0; }
+
+  .form { display: grid; gap: 12px; }
+  .form label { display: grid; gap: 5px; color: var(--text-muted); font-size: 12px; }
+  .form .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+  .swatches button { width: 24px; height: 24px; border-radius: 6px; border: 2px solid transparent; cursor: pointer; }
+  .swatches button.on { border-color: var(--text-primary); }
+  .seg2 { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg2 button { height: 32px; border: 0; background: var(--surface-2); cursor: pointer; border-right: 1px solid var(--border); color: var(--text-secondary); }
+  .seg2 button:last-child { border-right: 0; }
+  .seg2 button.on { background: var(--surface-3); color: var(--text-primary); box-shadow: inset 0 -2px 0 var(--accent); }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .note { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+  details > summary { cursor: pointer; color: var(--text-secondary); font-weight: 600; list-style: none; display: flex; align-items: center; gap: 8px; }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::before { content: "▸"; color: var(--text-muted); }
+  details[open] > summary::before { content: "▾"; }
+  details .form { margin-top: 14px; }
+  .switch { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; color: var(--text-secondary); }
+  .switch input { width: 34px; height: 18px; accent-color: var(--accent); }
+  .files { display: grid; gap: 2px; margin-top: 6px; max-height: 180px; overflow-y: auto; }
+  .files a { display: flex; justify-content: space-between; gap: 10px; padding: 6px 8px; border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 12px; }
+  .files a:hover { background: var(--surface-2); color: var(--text-primary); }
+  .files a span:last-child { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 1000px) { .grid2 { grid-template-columns: 1fr; } }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button { height: 30px; padding: 0 12px; border: 0; background: var(--surface-2); cursor: pointer; border-right: 1px solid var(--border); color: var(--text-secondary); }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--surface-3); color: var(--text-primary); box-shadow: inset 0 -2px 0 var(--accent); }
+  .chart { position: relative; height: 220px; }
+  .chart canvas { width: 100%; height: 100%; display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; color: var(--text-secondary); font-size: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+  .legend i.sq { height: 10px; width: 10px; border-radius: 3px; }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 500; font-size: 12px; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .log { max-height: 300px; overflow-y: auto; }
+  .log div { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; align-items: baseline; }
+  .log div:last-child { border-bottom: 0; }
+  .log time { color: var(--text-muted); font-variant-numeric: tabular-nums; flex: none; }
+  .log .k { flex: none; width: 46px; color: var(--text-muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; }
+  .tip { position: fixed; z-index: 50; pointer-events: none; display: none; background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 10px; font-size: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.45); min-width: 130px; }
+  .tip .t { color: var(--text-muted); margin-bottom: 4px; }
+  .tip .r { display: flex; align-items: center; gap: 6px; }
+  .tip .r b { margin-left: auto; padding-left: 14px; font-variant-numeric: tabular-nums; }
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--surface-3); border: 1px solid var(--border-strong);
+    padding: 9px 16px; border-radius: 9px; display: none; z-index: 60; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  .banner { display: none; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(250,178,25,.35);
+    background: rgba(250,178,25,.07); color: #f3d79b; font-size: 12.5px; }
+  .banner.show { display: flex; }
+  .banner code { color: #fff; background: rgba(0,0,0,.3); padding: 1px 6px; border-radius: 4px; }
+  footer { color: var(--text-muted); font-size: 12px; padding: 0 20px 24px; max-width: 1800px; margin: 0 auto; }
+  footer code { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-select" viewBox="0 0 24 24"><path d="M5 3l14 8-6 2-2 6z"/></symbol>
+  <symbol id="i-zone" viewBox="0 0 24 24"><path d="M4 7l7-4 9 5-2 11-12 1z"/></symbol>
+  <symbol id="i-door" viewBox="0 0 24 24"><path d="M5 21V4a1 1 0 011-1h9l4 2v16"/><path d="M3 21h18"/><path d="M15 3v18"/><circle cx="12" cy="12" r=".8"/></symbol>
+  <symbol id="i-line" viewBox="0 0 24 24"><path d="M4 20L20 4"/><path d="M14 14l4 2-1-4"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h3"/></symbol>
+  <symbol id="i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+</svg>
+
+<header>
+  <span class="brand"><span class="logo"><svg class="i" style="width:13px;height:13px;stroke:#fff"><use href="#i-zone"/></svg></span>FlowLens</span>
+  <span class="pill" id="pConn"><span class="dot"></span><span>connecting…</span></span>
+  <span class="pill" id="pCam"><span class="dot"></span><span>camera</span></span>
+  <span class="pill num" id="pAi">AI —</span>
+  <span class="pill num" id="pLog" title="Statistics are auto-saved to the logs folder">Log —</span>
+  <span class="spacer"></span>
+  <label class="chk" title="How people appear in the live view. Analytics are unaffected.">
+    <select id="privacy">
+      <option value="blur">People blurred</option>
+      <option value="pixelate">People pixelated</option>
+      <option value="mask">People masked</option>
+      <option value="off">Video off</option>
+    </select>
+  </label>
+  <a class="btn" id="export" href="/api/export.csv?minutes=1440"><svg class="i"><use href="#i-dl"/></svg>Export CSV</a>
+  <button class="btn danger" id="reset">Reset stats</button>
+</header>
+
+<main>
+  <div class="banner" id="perfBanner"></div>
+  <div class="top">
+    <section class="card stage-card">
+      <div class="tools">
+        <div class="toolgroup" id="modes">
+          <button data-mode="select" class="on" title="Select & edit (V)"><svg class="i"><use href="#i-select"/></svg>Select</button>
+          <button data-mode="zone" title="Draw a queue / service / area zone (Z)"><svg class="i"><use href="#i-zone"/></svg>Zone</button>
+          <button data-mode="door" title="Draw a door zone: counts people appearing / disappearing in the doorway (D)"><svg class="i"><use href="#i-door"/></svg>Door</button>
+          <button data-mode="line" title="Draw a counting line (L) - hold Shift to snap"><svg class="i"><use href="#i-line"/></svg>Line</button>
+        </div>
+        <div class="toolgroup">
+          <button id="undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg class="i"><use href="#i-undo"/></svg></button>
+          <button id="redo" title="Redo (Ctrl+Y)" aria-label="Redo" disabled><svg class="i"><use href="#i-redo"/></svg></button>
+        </div>
+        <span class="sep"></span>
+        <div class="layers">
+          <label class="chk"><input type="checkbox" id="lyVideo" checked> Video</label>
+          <label class="chk"><input type="checkbox" id="lyShapes" checked> Zones</label>
+          <label class="chk"><input type="checkbox" id="lyHeat"> Heatmap</label>
+          <select id="heatRange" title="Heatmap memory"><option value="live">Last ~30 s</option><option value="total">Since start</option></select>
+          <input type="range" id="heatOp" min="20" max="100" value="65" title="Heatmap opacity" style="width:80px">
+        </div>
+        <div class="savebar" id="savebar">
+          <span>Unsaved changes</span>
+          <button class="btn" id="discard">Discard</button>
+          <button class="btn primary" id="save">Save layout</button>
+        </div>
+      </div>
+      <div class="stage-wrap" id="stageWrap">
+        <div class="stage" id="stage">
+          <img id="video" alt="">
+          <div class="placeholder" id="placeholder"><div class="box"><div class="spinner" id="phSpin"></div><b id="phTitle">Connecting to camera…</b><span id="phText"></span></div></div>
+          <canvas id="heat"></canvas>
+          <svg id="overlay"></svg>
+          <div class="onboard" id="onboard"><div class="box">
+            <h3>Define what to measure</h3>
+            <p>Draw directly on the camera view. Everything is measured from the point where each person stands.</p>
+            <div class="row">
+              <button class="btn primary" data-start="door"><svg class="i"><use href="#i-door"/></svg>Door zone</button>
+              <button class="btn" data-start="line"><svg class="i"><use href="#i-line"/></svg>Counting line</button>
+              <button class="btn" data-start="zone"><svg class="i"><use href="#i-zone"/></svg>Queue zone</button>
+            </div>
+          </div></div>
+          <div class="hud" id="hud"></div>
+          <div class="stage-actions"><button class="btn icon" id="fullscreen" title="Full screen" aria-label="Full screen"><svg class="i"><use href="#i-full"/></svg></button></div>
+        </div>
+      </div>
+      <div class="hintbar"><span id="hint"></span></div>
+    </section>
+
+    <aside>
+      <div class="kpis" id="kpis"></div>
+      <div class="card" id="panel"></div>
+      <details class="card" id="logCard" open>
+        <summary>Auto-saved logs</summary>
+        <div class="form">
+          <div>
+            <div class="switch"><span>Per-minute statistics (CSV)</span><input type="checkbox" id="lgStats"></div>
+            <div class="switch"><span>Event log - crossings, visits, alerts (CSV)</span><input type="checkbox" id="lgEvents"></div>
+          </div>
+          <div class="note" id="lgStatus"></div>
+          <div class="files" id="lgFiles"></div>
+        </div>
+      </details>
+      <details class="card" id="hubCard">
+        <summary>Site hub <span class="pill num" id="hubPill" style="margin-left:auto">off</span></summary>
+        <div class="form">
+          <div class="note">Join several cameras into one site view. Only counts and aggregates are sent, never video.</div>
+          <div class="two">
+            <label>This camera's name <input type="text" id="nName" maxlength="60" placeholder="e.g. Hall A - entrance"></label>
+            <label>Site / event <input type="text" id="nSite" maxlength="60" placeholder="e.g. Auto Expo 2026"></label>
+          </div>
+          <label>Hub address <input type="text" id="hUrl" placeholder="http://192.168.1.20:9000"></label>
+          <label>Hub access token <input type="text" id="hToken" placeholder="shown on the hub's Settings page" autocomplete="off"></label>
+          <div class="switch"><span>Send data to the hub</span><input type="checkbox" id="hOn"></div>
+          <div class="note" id="hubStatus"></div>
+          <div class="actions"><button class="btn primary" id="hSave">Save &amp; connect</button></div>
+        </div>
+      </details>
+      <details class="card" id="floorCard">
+        <summary>Floor plan mapping <span class="pill num" id="floorPill" style="margin-left:auto">optional</span></summary>
+        <div class="form">
+          <div class="note">Optional. Match 4 points on the floor in this camera view to the same 4 points on the hub's floor plan,
+            so this camera's heatmap, zones and lines appear in the right place on the site map. The floor plan can be any image:
+            a venue plan, a store layout, even a hand sketch.</div>
+          <div class="actions"><button class="btn primary" id="fOpen">Map to floor plan</button><button class="btn danger" id="fClear">Remove mapping</button></div>
+        </div>
+      </details>
+      <details class="card">
+        <summary>Settings</summary>
+        <div class="form">
+          <label>Camera source <input type="text" id="sSource" placeholder="0, 1 or rtsp://…"></label>
+          <div class="two">
+            <label>Stats window
+              <select id="sWindow"><option value="5">5 min</option><option value="15">15 min</option>
+                <option value="30">30 min</option><option value="60">60 min</option><option value="240">4 h</option></select></label>
+            <label>Min. visit length (s) <input type="number" id="sMinDwell" min="0" max="60" step="0.5"></label>
+          </div>
+          <div class="two">
+            <label>Heatmap half-life (s) <input type="number" id="sHalf" min="5" max="600"></label>
+            <label title="Counts below this number are shown as &lt;k">Hide counts below <input type="number" id="sK" min="0" max="10"></label>
+          </div>
+          <div class="actions"><button class="btn primary" id="sSave">Apply settings</button></div>
+        </div>
+      </details>
+    </aside>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Trends</h2><span class="spacer"></span>
+      <div class="seg" id="ranges">
+        <button data-r="15">15 min</button><button data-r="60" class="on">1 h</button>
+        <button data-r="360">6 h</button><button data-r="1440">24 h</button>
+      </div>
+    </div>
+    <div class="grid2">
+      <div><div class="card-head"><h2>Occupancy (average people)</h2></div>
+        <div class="chart"><canvas id="cOcc"></canvas></div><div class="legend" id="lOcc"></div></div>
+      <div><div class="card-head"><h2>Footfall</h2><span class="spacer"></span><select id="ctrSel"></select></div>
+        <div class="chart"><canvas id="cFlow"></canvas></div><div class="legend" id="lFlow"></div></div>
+      <div><div class="card-head"><h2>Average dwell per zone</h2></div>
+        <div class="chart"><canvas id="cDwell"></canvas></div><div class="legend" id="lDwell"></div></div>
+      <div><div class="card-head"><h2>Dwell distribution</h2><span class="spacer"></span><select id="zoneSel"></select></div>
+        <div class="chart"><canvas id="cHist"></canvas></div><div class="legend" id="lHist"></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2 id="zTitle">Zone performance</h2></div>
+    <div class="tablewrap"><table id="zTable"></table></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <div class="card-head"><h2 id="cTitle">Entries &amp; exits</h2></div>
+      <div class="tablewrap"><table id="cTable"></table></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Alerts</h2></div>
+      <div class="log" id="alerts"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="card-head"><h2>Activity log</h2><span class="note">Anonymous events · also saved to events CSV</span></div>
+    <div class="log" id="events"></div>
+  </section>
+</main>
+
+<footer>
+  Privacy by design: person detection only - no face recognition, no appearance or identity features (lost tracks are re-linked by motion alone) ·
+  no recording, nothing visual written to disk · people are anonymised before the live view is encoded · logs hold aggregates and anonymous events only.
+  Details: <code>/api/privacy</code>
+</footer>
+
+<div class="modal" id="fModal" hidden>
+  <div class="modal-box">
+    <div class="card-head"><h2>Map this camera to the floor plan</h2><span class="spacer"></span>
+      <button class="btn" id="fUndo">Undo point</button><button class="btn" id="fCancel">Cancel</button><button class="btn primary" id="fSave" disabled>Save mapping</button></div>
+    <div class="note" id="fHint">Click a point on the floor in the camera view (e.g. a floor tile corner, a pillar base, a door edge), then the same spot on the floor plan. Repeat for 4 spots spread out across the floor.</div>
+    <div class="fgrid">
+      <div class="fpane"><div class="tag">Camera view</div><div class="fwrap" id="fCamWrap"><img id="fCam" alt=""><svg id="fCamSvg"></svg></div></div>
+      <div class="fpane"><div class="tag">Floor plan</div><div class="fwrap" id="fPlanWrap"><img id="fPlan" alt=""><svg id="fPlanSvg"></svg></div></div>
+    </div>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const PALETTE = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"];
+const STATUS = { ok: ["✓", "Normal"], warning: ["▲", "Busy"], critical: ["■", "Over limit"] };
+const TYPE_LABEL = { queue: "queue", service: "service", area: "area", door: "door" };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
+const uid = p => p + Math.random().toString(36).slice(2, 8);
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const fmtDur = s0 => { if (s0 == null) return "–"; const s = Math.round(s0);
+  return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s` : `${Math.floor(s / 3600)}h ${Math.floor(s % 3600 / 60)}m`; };
+const fmtN = v => v == null ? "<k" : v;
+const fmtClock = (ts, sec) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", ...(sec ? { second: "2-digit" } : {}) });
+const fmtBytes = b => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+const tip = $("tip");
+
+let snap = {}, cfg = null, draft = null, dirty = false;
+let mode = "select", drawPts = [], cursor = null, sel = null, drag = null, shiftKey = false;
+let range = 60, series = null, undoStack = [], redoStack = [];
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", "X-FlowLens": "1", ...(opts.headers || {}) } });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = "none", 2400); }
+function fitCanvas(c) {
+  const r = c.getBoundingClientRect(), d = devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(r.width * d)), h = Math.max(1, Math.round(r.height * d));
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const ctx = c.getContext("2d"); ctx.setTransform(d, 0, 0, d, 0, 0);
+  return [ctx, r.width, r.height];
+}
+function showTip(html, x, y) {
+  tip.innerHTML = html; tip.style.display = "block";
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.min(innerWidth - w - 8, x + 14) + "px";
+  tip.style.top = Math.max(8, Math.min(innerHeight - h - 8, y + 14)) + "px";
+}
+const hideTip = () => tip.style.display = "none";
+
+/* ================================================================ layout editor */
+const stage = $("stage"), svg = $("overlay");
+const liveZone = id => (snap.zones || []).find(z => z.id === id);
+const liveCtr = id => (snap.counters || []).find(c => c.id === id);
+function nextColor(list) { const used = new Set(list.map(x => x.color)); return PALETTE.find(c => !used.has(c)) || PALETTE[list.length % PALETTE.length]; }
+function setDirty(v = true) { dirty = v; $("savebar").classList.toggle("show", dirty); }
+function pushUndo() { undoStack.push(clone(draft)); if (undoStack.length > 80) undoStack.shift(); redoStack = []; syncUndo(); }
+function syncUndo() { $("undo").disabled = !undoStack.length; $("redo").disabled = !redoStack.length; }
+function undo() { if (!undoStack.length) return; redoStack.push(clone(draft)); draft = undoStack.pop(); afterHistory(); }
+function redo() { if (!redoStack.length) return; undoStack.push(clone(draft)); draft = redoStack.pop(); afterHistory(); }
+function afterHistory() {
+  if (sel && !shape(sel.kind, sel.id)) sel = null;
+  setDirty(JSON.stringify({ z: draft.zones, l: draft.lines }) !== JSON.stringify({ z: cfg.zones, l: cfg.lines }));
+  syncUndo(); renderPanel(); renderOverlay(); updateHint();
+}
+$("undo").onclick = undo; $("redo").onclick = redo;
+
+function setMode(m) {
+  mode = m; drawPts = []; cursor = null;
+  document.querySelectorAll("#modes button").forEach(b => b.classList.toggle("on", b.dataset.mode === m));
+  stage.classList.toggle("drawing", m !== "select");
+  updateHint(); renderOverlay(); syncOnboard();
+}
+function updateHint() {
+  const k = s => `<kbd>${s}</kbd>`;
+  const h = {
+    select: sel ? (sel.kind === "zone"
+        ? `Drag to move · drag a point to reshape · double-click an edge to add a point · ${k("Shift")}+click a point to remove it · ${k("Del")} deletes`
+        : `Drag to move · drag an end to adjust · the arrow shows the IN direction · the shaded band is the dead-band · ${k("Del")} deletes`)
+      : `Click a zone, door or line to edit it · ${k("V")} select · ${k("Z")} zone · ${k("D")} door · ${k("L")} line · ${k("Ctrl")}+${k("Z")} undo`,
+    zone: `Click to place corners. Click the first point, double-click or press ${k("Enter")} to finish. ${k("Esc")} cancels.`,
+    door: `Outline the doorway where people appear and disappear. Click the first point, double-click or press ${k("Enter")} to finish.`,
+    line: `Click the start, then the end point. Hold ${k("Shift")} to snap. People moving in the arrow's direction count as IN.`,
+  }[mode];
+  $("hint").innerHTML = h;
+}
+function normPt(e) { const r = stage.getBoundingClientRect(); return [clamp((e.clientX - r.left) / r.width), clamp((e.clientY - r.top) / r.height)]; }
+function shape(kind, id) { return (kind === "zone" ? draft.zones : draft.lines).find(s => s.id === id); }
+function snapPt(a, p) {
+  if (!shiftKey) return p;
+  const r = stage.getBoundingClientRect(), dx = (p[0] - a[0]) * r.width, dy = (p[1] - a[1]) * r.height;
+  const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4), len = Math.hypot(dx, dy);
+  return [clamp(a[0] + Math.cos(ang) * len / r.width), clamp(a[1] + Math.sin(ang) * len / r.height)];
+}
+function chip(x, y, text, color, W, H, statusKey) {
+  const w = text.length * 6.9 + (statusKey ? 30 : 18), h = 24;
+  x = Math.min(Math.max(4, x), W - w - 4); y = Math.min(Math.max(4, y), H - h - 4);
+  let s = `<g pointer-events="none"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="rgba(12,12,12,.86)" stroke="${color}" stroke-opacity=".9"/>`;
+  if (statusKey) s += `<circle cx="${x + 13}" cy="${y + 12}" r="4" fill="var(--${statusKey === "ok" ? "good" : statusKey})"/>`;
+  return s + `<text x="${x + (statusKey ? 23 : 9)}" y="${y + 16}" fill="#f0efec" font-size="12" font-weight="600">${esc(text)}</text></g>`;
+}
+
+function renderOverlay() {
+  if (!draft) return;
+  const r = stage.getBoundingClientRect(), W = r.width, H = r.height;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const P = ([x, y]) => [x * W, y * H];
+  let defs = `<defs>`;
+  let s = `<rect data-role="bg" x="0" y="0" width="${W}" height="${H}" fill="transparent"/>`;
+  if ($("lyShapes").checked) {
+    for (const z of draft.zones) {
+      const on = sel && sel.kind === "zone" && sel.id === z.id, pts = z.points.map(P), door = z.type === "door";
+      if (door) defs += `<pattern id="h_${z.id}" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="10" stroke="${z.color}" stroke-width="3" stroke-opacity=".35"/></pattern>`;
+      s += `<polygon data-role="shape" data-kind="zone" data-id="${z.id}" points="${pts.map(p => p.join(",")).join(" ")}"
+        fill="${door ? `url(#h_${z.id})` : z.color}" fill-opacity="${door ? 1 : on ? .22 : .11}" stroke="${z.color}" stroke-width="${on ? 3 : 2}"
+        ${z.type === "queue" ? 'stroke-dasharray="8 5"' : ""} style="cursor:${mode === "select" ? "move" : "crosshair"}"/>`;
+      const lz = liveZone(z.id), lc = liveCtr(z.id), minX = Math.min(...pts.map(p => p[0])), minY = Math.min(...pts.map(p => p[1]));
+      let label = `${z.name} · unsaved`;
+      if (door && lc) label = `${z.name} · ${z.in_label || "In"} ${lc.in} · ${z.out_label || "Out"} ${lc.out}`;
+      else if (lz) label = `${z.name} · ${fmtN(lz.count)}${lz.longest_current_s != null ? " · " + fmtDur(lz.longest_current_s) : ""}`;
+      s += chip(minX + 6, minY + 6, label, z.color, W, H, lz && !door ? lz.status : null);
+      if (on) pts.forEach(([x, y], i) => s += `<circle data-role="vertex" data-kind="zone" data-id="${z.id}" data-idx="${i}" cx="${x}" cy="${y}" r="7" fill="#f0efec" stroke="${z.color}" stroke-width="2.5" style="cursor:grab"/>`);
+    }
+    for (const l of draft.lines) {
+      const on = sel && sel.kind === "line" && sel.id === l.id;
+      const [a, b] = l.points.map(P), dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len, ny = dx / len, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      if (on) {   // dead-band visual (band is in frame-height units)
+        const o = (l.band ?? .03) * H;
+        s += `<polygon points="${a[0] + nx * o},${a[1] + ny * o} ${b[0] + nx * o},${b[1] + ny * o} ${b[0] - nx * o},${b[1] - ny * o} ${a[0] - nx * o},${a[1] - ny * o}" fill="${l.color}" fill-opacity=".12" stroke="${l.color}" stroke-opacity=".4" stroke-dasharray="4 4" pointer-events="none"/>`;
+      }
+      s += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="rgba(0,0,0,.55)" stroke-width="${on ? 7 : 6}" stroke-linecap="round" pointer-events="none"/>`;
+      s += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${l.color}" stroke-width="${on ? 4 : 3}" stroke-linecap="round" pointer-events="none"/>`;
+      s += `<line data-role="shape" data-kind="line" data-id="${l.id}" x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="transparent" stroke-width="18" style="cursor:${mode === "select" ? "move" : "crosshair"}"/>`;
+      const tx = mx + nx * 30, ty = my + ny * 30;
+      s += `<g pointer-events="none"><line x1="${mx}" y1="${my}" x2="${tx}" y2="${ty}" stroke="${l.color}" stroke-width="2.5"/>
+        <polygon points="${tx + nx * 9},${ty + ny * 9} ${tx - ny * 7},${ty + nx * 7} ${tx + ny * 7},${ty - nx * 7}" fill="${l.color}"/>
+        <text x="${tx + nx * 20}" y="${ty + ny * 20 + 4}" fill="#f0efec" font-size="11" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,.6)" stroke-width="3" paint-order="stroke">${esc((l.in_label || "In").toUpperCase())}</text></g>`;
+      const lc = liveCtr(l.id);
+      s += chip(Math.min(a[0], b[0]) + 6, Math.min(a[1], b[1]) - 32, lc ? `${l.name} · ${l.in_label} ${lc.in} · ${l.out_label} ${lc.out}` : `${l.name} · unsaved`, l.color, W, H);
+      if (on) [a, b].forEach(([x, y], i) => s += `<circle data-role="vertex" data-kind="line" data-id="${l.id}" data-idx="${i}" cx="${x}" cy="${y}" r="7.5" fill="#f0efec" stroke="${l.color}" stroke-width="2.5" style="cursor:grab"/>`);
+    }
+  }
+  if (mode !== "select" && drawPts.length) {
+    const isLine = mode === "line";
+    const col = isLine ? nextColor(draft.lines) : nextColor(draft.zones);
+    const pts = drawPts.map(P), c = cursor ? P(isLine ? snapPt(drawPts[0], cursor) : cursor) : null;
+    const all = c ? [...pts, c] : pts;
+    s += `<polyline points="${all.map(p => p.join(",")).join(" ")}" fill="${isLine ? "none" : col}" fill-opacity=".12" stroke="${col}" stroke-width="2.5" stroke-dasharray="6 4" pointer-events="none"/>`;
+    pts.forEach(([x, y], i) => s += `<circle cx="${x}" cy="${y}" r="${i === 0 && !isLine ? 8 : 5}" fill="${i === 0 ? col : "#f0efec"}" stroke="${col}" stroke-width="2" pointer-events="none"/>`);
+  }
+  svg.innerHTML = defs + `</defs>` + s;
+}
+
+let lastCommit = 0;
+function commitDrawing() {
+  lastCommit = performance.now();
+  if ((mode === "zone" || mode === "door") && drawPts.length >= 3) {
+    pushUndo();
+    const door = mode === "door", n = draft.zones.filter(z => (z.type === "door") === door).length + 1;
+    const z = { id: uid("z_"), name: door ? `Door ${n}` : `Zone ${n}`, type: door ? "door" : "queue", color: nextColor(draft.zones),
+      points: drawPts.slice(), capacity: null, wait_alert_s: null, in_label: door ? "Entered" : "In", out_label: door ? "Left" : "Out" };
+    draft.zones.push(z); sel = { kind: "zone", id: z.id };
+  } else if (mode === "line" && drawPts.length === 2) {
+    const r = stage.getBoundingClientRect();
+    if (Math.hypot((drawPts[1][0] - drawPts[0][0]) * r.width, (drawPts[1][1] - drawPts[0][1]) * r.height) < 12) { drawPts.pop(); toast("Line too short - click the end point further away"); renderOverlay(); return; }
+    pushUndo();
+    const l = { id: uid("l_"), name: `Line ${draft.lines.length + 1}`, color: nextColor(draft.lines), points: drawPts.slice(),
+      in_label: "In", out_label: "Out", anchor: "feet", band: 0.03 };
+    draft.lines.push(l); sel = { kind: "line", id: l.id };
+  } else return;
+  setDirty(); setMode("select"); renderPanel();
+}
+
+svg.addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  let p = normPt(e);
+  const t = e.target.closest("[data-role]"), role = t?.dataset.role;
+  if (mode === "zone" || mode === "door") {
+    if (drawPts.length >= 3) {
+      const r = stage.getBoundingClientRect(), f = drawPts[0];
+      if (Math.hypot((f[0] - p[0]) * r.width, (f[1] - p[1]) * r.height) < 14) return commitDrawing();
+    }
+    drawPts.push(p); renderOverlay(); return;
+  }
+  if (mode === "line") { if (drawPts.length) p = snapPt(drawPts[0], p); drawPts.push(p); if (drawPts.length === 2) commitDrawing(); else renderOverlay(); return; }
+  if (role === "vertex") {
+    const { kind, id } = t.dataset, idx = +t.dataset.idx, s = shape(kind, id);
+    if (e.shiftKey && kind === "zone" && s.points.length > 3) { pushUndo(); s.points.splice(idx, 1); setDirty(); renderOverlay(); return; }
+    drag = { type: "vertex", kind, id, idx, moved: false, before: clone(draft) };
+  } else if (role === "shape") {
+    sel = { kind: t.dataset.kind, id: t.dataset.id };
+    drag = { type: "shape", kind: sel.kind, id: sel.id, start: p, orig: clone(shape(sel.kind, sel.id).points), moved: false, before: clone(draft) };
+    renderPanel();
+  } else if (sel) { sel = null; renderPanel(); }
+  svg.setPointerCapture(e.pointerId);
+  updateHint(); renderOverlay();
+});
+svg.addEventListener("pointermove", e => {
+  const p = normPt(e);
+  if (mode !== "select") { cursor = p; if (drawPts.length) renderOverlay(); return; }
+  if (!drag) return;
+  const s = shape(drag.kind, drag.id); if (!s) return;
+  if (!drag.moved) { undoStack.push(drag.before); if (undoStack.length > 80) undoStack.shift(); redoStack = []; syncUndo(); }
+  if (drag.type === "vertex") s.points[drag.idx] = [+p[0].toFixed(4), +p[1].toFixed(4)];
+  else {
+    let dx = p[0] - drag.start[0], dy = p[1] - drag.start[1];
+    const xs = drag.orig.map(q => q[0]), ys = drag.orig.map(q => q[1]);
+    dx = clamp(dx, -Math.min(...xs), 1 - Math.max(...xs)); dy = clamp(dy, -Math.min(...ys), 1 - Math.max(...ys));
+    s.points = drag.orig.map(([x, y]) => [+(x + dx).toFixed(4), +(y + dy).toFixed(4)]);
+  }
+  drag.moved = true; renderOverlay();
+});
+svg.addEventListener("pointerup", () => { if (drag?.moved) setDirty(); drag = null; });
+svg.addEventListener("pointercancel", () => { if (drag?.moved) setDirty(); drag = null; });
+svg.addEventListener("dblclick", e => {
+  if (performance.now() - lastCommit < 500) return;
+  if (mode === "zone" || mode === "door") { drawPts.pop(); return commitDrawing(); }
+  if (!(sel && sel.kind === "zone")) return;
+  const z = shape("zone", sel.id), r = stage.getBoundingClientRect(), p = normPt(e);
+  let best = -1, bd = 1e9;
+  z.points.forEach((a, i) => {
+    const b = z.points[(i + 1) % z.points.length];
+    const ax = a[0] * r.width, ay = a[1] * r.height, bx = b[0] * r.width, by = b[1] * r.height, px = p[0] * r.width, py = p[1] * r.height;
+    const t = clamp(((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2 || 1));
+    const d = Math.hypot(px - (ax + t * (bx - ax)), py - (ay + t * (by - ay)));
+    if (d < bd) { bd = d; best = i; }
+  });
+  const nearVertex = z.points.some(([x, y]) => Math.hypot((x - p[0]) * r.width, (y - p[1]) * r.height) < 14);
+  if (bd < 14 && !nearVertex) { pushUndo(); z.points.splice(best + 1, 0, [+p[0].toFixed(4), +p[1].toFixed(4)]); setDirty(); renderOverlay(); }
+});
+addEventListener("keydown", e => {
+  shiftKey = e.shiftKey;
+  if (!$("fModal").hidden) { if (e.key === "Escape") $("fCancel").click(); return; }   // modal owns the keyboard
+  const ae = document.activeElement;
+  const typing = ae && (ae.tagName === "TEXTAREA" || ae.tagName === "SELECT" || (ae.tagName === "INPUT" && !["checkbox", "range", "button"].includes(ae.type)));
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (dirty) saveLayout(); return; }
+  if (typing) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === "Escape") { if (mode !== "select") setMode("select"); else if (sel) { sel = null; renderPanel(); renderOverlay(); updateHint(); } }
+  else if (e.key === "Enter" && (mode === "zone" || mode === "door")) commitDrawing();
+  else if ((e.key === "Delete" || e.key === "Backspace") && sel) deleteSelected();
+  else if (e.key === "v" || e.key === "V") setMode("select");
+  else if (e.key === "z" || e.key === "Z") setMode("zone");
+  else if (e.key === "d" || e.key === "D") setMode("door");
+  else if (e.key === "l" || e.key === "L") setMode("line");
+  if (mode === "line" && drawPts.length) renderOverlay();
+});
+addEventListener("keyup", e => { shiftKey = e.shiftKey; if (mode === "line" && drawPts.length) renderOverlay(); });
+document.querySelectorAll("#modes button").forEach(b => b.onclick = () => setMode(b.dataset.mode));
+document.querySelectorAll("[data-start]").forEach(b => b.onclick = () => setMode(b.dataset.start));
+
+function deleteSelected() {
+  if (!sel) return;
+  pushUndo();
+  if (sel.kind === "zone") draft.zones = draft.zones.filter(z => z.id !== sel.id);
+  else draft.lines = draft.lines.filter(l => l.id !== sel.id);
+  sel = null; setDirty(); renderPanel(); renderOverlay(); updateHint(); syncOnboard();
+}
+function normCfg(c) {
+  for (const l of c.lines || []) { l.in_label = l.in_label || "In"; l.out_label = l.out_label || "Out"; }
+  for (const z of c.zones || []) if (z.type === "door") { z.in_label = z.in_label || "Entered"; z.out_label = z.out_label || "Left"; }
+  return c;
+}
+async function saveLayout() {
+  const sent = JSON.stringify({ z: draft.zones, l: draft.lines });
+  try {
+    cfg = normCfg(await api("/api/config", { method: "PUT", body: JSON.stringify({ zones: draft.zones, lines: draft.lines }) }));
+    const changedMeanwhile = JSON.stringify({ z: draft.zones, l: draft.lines }) !== sent;
+    if (!changedMeanwhile) { draft = clone(cfg); setDirty(false); } else setDirty(true); toast("Layout saved - measuring now"); renderPanel(); renderOverlay(); loadSeries();
+  } catch (err) { toast("Save failed: " + err.message); }
+}
+$("save").onclick = saveLayout;
+$("discard").onclick = () => { pushUndo(); draft = clone(cfg); sel = null; setDirty(false); renderPanel(); renderOverlay(); updateHint(); syncOnboard(); };
+addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+function syncOnboard() { $("onboard").classList.toggle("show", !!draft && !draft.zones.length && !draft.lines.length && mode === "select"); }
+
+/* ================================================================== side panel */
+// one undo step per edit of a field: snapshot before the first keystroke after focus
+function undoOnFirstInput(...els) {
+  for (const el of els) {
+    if (!el) continue;
+    el.addEventListener("focus", () => { el._undone = false; });
+    el.addEventListener("input", () => { if (!el._undone) { el._undone = true; undoStack.push(el._before || clone(draft)); if (undoStack.length > 80) undoStack.shift(); redoStack = []; syncUndo(); } }, true);
+    el.addEventListener("focus", () => { el._before = clone(draft); });
+  }
+}
+function roleOf(c) { return ["perimeter", "internal", "ignore"].includes(c.role) ? c.role : (c.site === false ? "internal" : "perimeter"); }
+function statusTag(k) { const [i, l] = STATUS[k] || STATUS.ok; return `<span class="st ${k}"><i>${i}</i>${l}</span>`; }
+function bindOnce(el, ev, fn) { el.addEventListener(ev, fn); }
+
+function renderPanel() {
+  const el = $("panel");
+  if (sel) {
+    const s = shape(sel.kind, sel.id);
+    if (!s) { sel = null; return renderPanel(); }
+    const sw = PALETTE.map(c => `<button data-c="${c}" class="${c === s.color ? "on" : ""}" style="background:${c}" title="${c}"></button>`).join("");
+    if (sel.kind === "zone" && s.type === "door") {
+      el.innerHTML = `<div class="card-head"><h2>Door zone</h2><span class="spacer"></span><button class="btn" id="iDone">Done</button></div>
+      <div class="form">
+        <label>Name <input type="text" id="iName" value="${esc(s.name)}" maxlength="60"></label>
+        <div class="two">
+          <label>Appearing here counts as <input type="text" id="iIn" value="${esc(s.in_label || "Entered")}" maxlength="20"></label>
+          <label>Disappearing here counts as <input type="text" id="iOut" value="${esc(s.out_label || "Left")}" maxlength="20"></label>
+        </div>
+        <label>Counts as <div class="seg2" id="iRole">
+          <button data-r="perimeter" class="${roleOf(s) === "perimeter" ? "on" : ""}" title="A real entrance/exit of the site: feeds Entries, Exits and venue occupancy">Site entrance</button>
+          <button data-r="internal" class="${roleOf(s) === "internal" ? "on" : ""}" title="Movement between two areas inside the site">Between areas</button>
+          <button data-r="ignore" class="${roleOf(s) === "ignore" ? "on" : ""}" title="Shown here, left out of all totals">Ignore</button></div></label>
+        <div class="two" id="iAreas">
+          <label>${roleOf(s) === "perimeter" ? "Outside" : "From area"} <input type="text" id="iFrom" value="${esc(s.from_area || "")}" maxlength="40" placeholder="${roleOf(s) === "perimeter" ? "outside" : "e.g. Lobby"}" ${roleOf(s) === "perimeter" ? "disabled" : ""}></label>
+          <label>${roleOf(s) === "perimeter" ? "Leads into area" : "To area"} <input type="text" id="iTo" value="${esc(s.to_area || "")}" maxlength="40" placeholder="e.g. Hall A"></label>
+        </div>
+        <label>Colour <div class="swatches" id="iSw">${sw}</div></label>
+        <div class="actions"><button class="btn" id="iToZone">Convert to normal zone</button><button class="btn danger" id="iDel">Delete</button></div>
+        <div class="note">Use this for doorways and frame edges. A person whose track <b>starts</b> inside this area came in; a track that <b>ends</b> inside it went out.
+          One sighting in the doorway is enough, so very fast entries and exits still count. Lost tracks are re-linked by motion first, so people who are
+          briefly hidden are not double-counted.</div>
+      </div>`;
+      undoOnFirstInput($("iIn"), $("iOut"));
+      $("iIn").oninput = e => { s.in_label = e.target.value || "Entered"; setDirty(); renderOverlay(); };
+      $("iOut").oninput = e => { s.out_label = e.target.value || "Left"; setDirty(); renderOverlay(); };
+      $("iToZone").onclick = () => { pushUndo(); s.type = "area"; setDirty(); renderPanel(); renderOverlay(); };
+    } else if (sel.kind === "zone") {
+      el.innerHTML = `<div class="card-head"><h2>Zone</h2><span class="spacer"></span><button class="btn" id="iDone">Done</button></div>
+      <div class="form">
+        <label>Name <input type="text" id="iName" value="${esc(s.name)}" maxlength="60"></label>
+        <label>Type <div class="seg2" id="iType">
+          <button data-t="queue" class="${s.type === "queue" ? "on" : ""}">Queue</button>
+          <button data-t="service" class="${s.type === "service" ? "on" : ""}">Service</button>
+          <button data-t="area" class="${s.type === "area" ? "on" : ""}">Area</button>
+          <button data-t="door" class="${s.type === "door" ? "on" : ""}">Door</button></div></label>
+        <div class="two">
+          <label>Capacity (people) <input type="number" id="iCap" min="0" value="${s.capacity ?? ""}" placeholder="none"></label>
+          <label>Wait alert after (s) <input type="number" id="iAlert" min="0" value="${s.wait_alert_s ?? ""}" placeholder="e.g. 300"></label>
+        </div>
+        <label>Area (for the hub's site view) <input type="text" id="iArea" value="${esc(s.area || "")}" maxlength="40" placeholder="e.g. Hall A, Checkout, Reception"></label>
+        <label>Count a person by their <div class="seg2" id="iZAnchor">
+          <button data-a="feet" class="${s.anchor !== "center" ? "on" : ""}" title="Where they stand - best for walking areas and queues">Feet</button>
+          <button data-a="center" class="${s.anchor === "center" ? "on" : ""}" title="Middle of the body - for seated people, desks, close-up cameras">Body centre</button></div></label>
+        <label>Colour <div class="swatches" id="iSw">${sw}</div></label>
+        <div class="actions"><button class="btn danger" id="iDel">Delete zone</button></div>
+        <div class="note">Dwell runs from when a person enters the zone (by their feet, or body centre if chosen) until they leave it, with a 1 s grace period for jitter at the edge. Use <b>Body centre</b> when people sit or their feet are out of view.
+          Queue zones feed the <b>Longest wait</b> figure.</div>
+      </div>`;
+      $("iType").onclick = e => { const t = e.target.dataset.t; if (!t) return; pushUndo(); s.type = t; if (t === "door") { s.in_label = "Entered"; s.out_label = "Left"; } setDirty(); renderPanel(); renderOverlay(); };
+      undoOnFirstInput($("iCap"), $("iAlert"));
+      $("iCap").oninput = e => { s.capacity = e.target.value === "" ? null : +e.target.value; setDirty(); };
+      $("iAlert").oninput = e => { s.wait_alert_s = e.target.value === "" ? null : +e.target.value; setDirty(); };
+    } else {
+      const band = Math.round((s.band ?? .03) * 100);
+      el.innerHTML = `<div class="card-head"><h2>Counting line</h2><span class="spacer"></span><button class="btn" id="iDone">Done</button></div>
+      <div class="form">
+        <label>Name <input type="text" id="iName" value="${esc(s.name)}" maxlength="60"></label>
+        <div class="two">
+          <label>Arrow direction <input type="text" id="iIn" value="${esc(s.in_label)}" maxlength="20"></label>
+          <label>Opposite direction <input type="text" id="iOut" value="${esc(s.out_label)}" maxlength="20"></label>
+        </div>
+        <label>Track point <div class="seg2" id="iAnchor">
+          <button data-a="feet" class="${s.anchor !== "center" ? "on" : ""}">Feet</button>
+          <button data-a="center" class="${s.anchor === "center" ? "on" : ""}">Body centre</button></div></label>
+        <label>Dead-band: <span id="iBandV">${band}% of frame height</span>
+          <input type="range" id="iBand" min="1" max="10" value="${band}"></label>
+        <label>Counts as <div class="seg2" id="iRole">
+          <button data-r="perimeter" class="${roleOf(s) === "perimeter" ? "on" : ""}" title="A real entrance/exit of the site: feeds Entries, Exits and venue occupancy">Site entrance</button>
+          <button data-r="internal" class="${roleOf(s) === "internal" ? "on" : ""}" title="Movement between two areas inside the site">Between areas</button>
+          <button data-r="ignore" class="${roleOf(s) === "ignore" ? "on" : ""}" title="Shown here, left out of all totals">Ignore</button></div></label>
+        <div class="two" id="iAreas">
+          <label>${roleOf(s) === "perimeter" ? "Outside" : "From area"} <input type="text" id="iFrom" value="${esc(s.from_area || "")}" maxlength="40" placeholder="${roleOf(s) === "perimeter" ? "outside" : "e.g. Lobby"}" ${roleOf(s) === "perimeter" ? "disabled" : ""}></label>
+          <label>${roleOf(s) === "perimeter" ? "Leads into area" : "To area"} <input type="text" id="iTo" value="${esc(s.to_area || "")}" maxlength="40" placeholder="e.g. Hall A"></label>
+        </div>
+        <label>Colour <div class="swatches" id="iSw">${sw}</div></label>
+        <div class="actions"><button class="btn" id="iSwap">Swap direction</button><button class="btn danger" id="iDel">Delete line</button></div>
+        <div class="note">A crossing counts when a person is seen <b>fully on one side</b> of the shaded band and later <b>on the other</b>, even if they jumped
+          across it between two frames. Standing on the line never counts. Use <b>Body centre</b> when feet are hidden (e.g. counters, crowds) or for a top-down camera.</div>
+      </div>`;
+      undoOnFirstInput($("iIn"), $("iOut"), $("iBand"));
+      $("iIn").oninput = e => { s.in_label = e.target.value || "In"; setDirty(); renderOverlay(); };
+      $("iOut").oninput = e => { s.out_label = e.target.value || "Out"; setDirty(); renderOverlay(); };
+      $("iBand").oninput = e => { s.band = +e.target.value / 100; $("iBandV").textContent = `${e.target.value}% of frame height`; setDirty(); renderOverlay(); };
+      $("iAnchor").onclick = e => { const a = e.target.dataset.a; if (!a) return; pushUndo(); s.anchor = a; setDirty(); renderPanel(); };
+      $("iSwap").onclick = () => { pushUndo(); s.points.reverse(); const t = s.in_label; s.in_label = s.out_label; s.out_label = t; setDirty(); renderPanel(); renderOverlay(); };
+    }
+    if ($("iRole")) {
+      $("iRole").onclick = e => { const r = e.target.dataset.r; if (!r) return; pushUndo(); s.role = r; s.site = r === "perimeter"; setDirty(); renderPanel(); };
+      undoOnFirstInput($("iFrom"), $("iTo"));
+      $("iFrom").oninput = e => { s.from_area = e.target.value; setDirty(); };
+      $("iTo").oninput = e => { s.to_area = e.target.value; setDirty(); };
+    }
+    if ($("iZAnchor")) $("iZAnchor").onclick = e => { const a = e.target.dataset.a; if (!a) return; pushUndo(); s.anchor = a; setDirty(); renderPanel(); };
+    if ($("iArea")) { undoOnFirstInput($("iArea")); $("iArea").oninput = e => { s.area = e.target.value; setDirty(); }; }
+    undoOnFirstInput($("iName"));
+    $("iName").oninput = e => { s.name = e.target.value; setDirty(); renderOverlay(); };
+    $("iSw").onclick = e => { const c = e.target.dataset.c; if (!c) return; pushUndo(); s.color = c; setDirty(); renderPanel(); renderOverlay(); };
+    $("iDel").onclick = deleteSelected;
+    $("iDone").onclick = () => { sel = null; renderPanel(); renderOverlay(); updateHint(); };
+    return;
+  }
+  const zones = draft?.zones || [], lines = draft?.lines || [];
+  if (!zones.length && !lines.length) {
+    el.innerHTML = `<div class="card-head"><h2>Zones, doors &amp; lines</h2></div>
+      <div class="empty">Nothing defined yet. Use the tools above the camera view:<br><br>
+      <b>Door</b>: outline a doorway to count people entering and leaving, even fast ones.<br>
+      <b>Line</b>: draw across an aisle or entrance to count crossings in each direction.<br>
+      <b>Zone</b>: outline a queue, counter or area to measure occupancy and dwell time.<br><br>Then click <b>Save layout</b>.</div>`;
+    return;
+  }
+  let h = `<div class="card-head"><h2>Zones, doors &amp; lines</h2><span class="spacer"></span><span class="note">${snap.window_min ?? 15}-min window</span></div><div>`;
+  for (const z of zones) {
+    const l = liveZone(z.id), c = liveCtr(z.id);
+    if (z.type === "door") {
+      h += `<div class="item" tabindex="0" role="button" data-k="zone" data-id="${z.id}"><div class="row"><span class="swatch" style="background:${z.color}"></span>
+        <span class="name">${esc(z.name)}</span><span class="tag">door</span><span class="big">${c ? (c.net >= 0 ? "+" : "") + c.net : "–"}</span></div>
+        <div class="meta">${c ? `<span>${esc(z.in_label || "Entered")} <b>${c.in}</b></span><span>${esc(z.out_label || "Left")} <b>${c.out}</b></span><span>${esc(z.in_label || "Entered")}/h <b>${c.in_hr}</b></span>` : "Save layout to start counting"}</div></div>`;
+      continue;
+    }
+    h += `<div class="item" tabindex="0" role="button" data-k="zone" data-id="${z.id}"><div class="row"><span class="swatch" style="background:${z.color}"></span>
+      <span class="name">${esc(z.name)}</span><span class="tag">${TYPE_LABEL[z.type] || z.type}</span><span class="big">${l ? fmtN(l.count) : "–"}</span></div>`;
+    if (l) {
+      h += `<div class="meta"><span>Avg dwell <b>${fmtDur(l.avg_dwell_s)}</b></span><span>Longest now <b>${fmtDur(l.longest_current_s)}</b></span>
+        <span>Visits <b>${l.visits_window}</b></span>${statusTag(l.status)}</div>`;
+      if (l.capacity) h += `<div class="bar" title="${l.count ?? 0} of ${l.capacity}"><i style="width:${Math.min(100, (l.utilisation || 0) * 100)}%;background:${z.color}"></i></div>`;
+    } else h += `<div class="meta">Save layout to start measuring</div>`;
+    h += `</div>`;
+  }
+  for (const ln of lines) {
+    const c = liveCtr(ln.id);
+    h += `<div class="item" tabindex="0" role="button" data-k="line" data-id="${ln.id}"><div class="row"><span class="swatch" style="background:${ln.color}"></span>
+      <span class="name">${esc(ln.name)}</span><span class="tag">line</span><span class="big">${c ? (c.net >= 0 ? "+" : "") + c.net : "–"}</span></div>
+      <div class="meta">${c ? `<span>${esc(ln.in_label)} <b>${c.in}</b></span><span>${esc(ln.out_label)} <b>${c.out}</b></span><span>${esc(ln.in_label)}/h <b>${c.in_hr}</b></span>` : "Save layout to start counting"}</div></div>`;
+  }
+  el.innerHTML = h + "</div>";
+  const pick = it => { sel = { kind: it.dataset.k, id: it.dataset.id }; setMode("select"); renderPanel(); renderOverlay(); updateHint(); };
+  el.querySelectorAll(".item").forEach(it => { it.onpointerdown = () => pick(it); it.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(it); } }; });
+}
+
+/* ======================================================================== heat */
+const RAMP = ["#104281", "#256abf", "#5598e7", "#9ec5f4", "#cde2fb"].map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+function ramp(v) { const p = clamp(v) * (RAMP.length - 1), i = Math.min(RAMP.length - 2, Math.floor(p)), f = p - i; return RAMP[i].map((c, k) => Math.round(c + (RAMP[i + 1][k] - c) * f)); }
+const heatOff = document.createElement("canvas");
+function renderHeat() {
+  const [ctx, W, H] = fitCanvas($("heat")); ctx.clearRect(0, 0, W, H);
+  const hm = snap.heat; if (!hm || !$("lyHeat").checked) return;
+  const data = hm[$("heatRange").value]; heatOff.width = hm.w; heatOff.height = hm.h;
+  const o = heatOff.getContext("2d"), img = o.createImageData(hm.w, hm.h), op = +$("heatOp").value / 100;
+  for (let i = 0; i < data.length; i++) {
+    const v = Math.sqrt(data[i]), [r, g, b] = ramp(v);
+    img.data.set([r, g, b, v < .04 ? 0 : Math.round(op * 255 * Math.min(1, v * 1.5))], i * 4);
+  }
+  o.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; ctx.drawImage(heatOff, 0, 0, W, H);
+}
+
+/* ======================================================================= video */
+const video = $("video");
+let videoWanted = null, videoReady = false;
+video.onload = () => { videoReady = true; video.classList.add("ready"); syncVideo(); };
+video.onerror = () => { videoReady = false; video.classList.remove("ready"); videoWanted = null; setTimeout(syncVideo, 2000); };
+function syncVideo() {
+  const cam = snap.camera, modeOff = snap.privacy?.video_mode === "off";
+  const want = $("lyVideo").checked && !!cam && !modeOff && cam.status === "ok" && cam.detector === "ok";
+  if (want !== videoWanted) {
+    videoWanted = want; videoReady = false; video.classList.remove("ready");
+    if (want) video.src = "/video.mjpg?t=" + Date.now(); else video.removeAttribute("src");
+  }
+  if (want && !videoReady && video.naturalWidth > 0) { videoReady = true; video.classList.add("ready"); }  // MJPEG may not fire onload
+  let title = "", text = "", spin = false;
+  if (!cam) { title = "Starting…"; spin = true; }
+  else if (cam.detector && cam.detector !== "ok") { title = cam.detector.startsWith("model failed") ? "Detector failed to load" : "Loading the person detector…"; text = cam.detector === "loading model" ? "First start downloads the model (about 6 MB)." : cam.detector; spin = cam.detector === "loading model"; }
+  else if (cam.status !== "ok") { title = "Camera unavailable"; text = cam.status + ". Close other apps that use the camera, or choose another source in Settings."; spin = true; }
+  else if (modeOff) { title = "Privacy mode: video off"; text = "Analytics keep running. You can still draw and edit zones on this canvas."; }
+  else if (!$("lyVideo").checked) { title = "Video layer hidden"; }
+  else if (!videoReady) { title = "Waiting for the first frame…"; spin = true; }
+  $("placeholder").style.display = title ? "grid" : "none";
+  $("phTitle").textContent = title; $("phText").textContent = text; $("phSpin").style.display = spin ? "block" : "none";
+}
+
+/* ======================================================================== live */
+function renderHeader() {
+  const cam = snap.camera, camOk = cam?.status === "ok";
+  const srcName = cam ? String(cam.source).split(/[\\/]/).pop() : "";
+  $("pCam").innerHTML = `<span class="dot ${camOk ? "ok" : "warn"}"></span><span>${camOk ? `Camera ${esc(srcName)} · ${cam.w}×${cam.h} · ${cam.cam_fps} fps` : "Camera " + (cam ? "unavailable" : "starting")}</span>`;
+  $("pCam").title = cam ? `Source: ${cam.source}` : "";
+  const slow = cam && cam.detector === "ok" && snap.fps < 10;
+  $("pAi").className = "pill num" + (slow ? " warn" : "");
+  $("pAi").textContent = cam?.device ? `AI ${snap.fps} fps · ${cam.device}` : "AI loading";
+  $("pAi").title = cam?.device ? `Detector ${cam.model} on ${cam.device}: ${cam.infer_ms} ms per frame. Camera delivers ${cam.cam_fps} fps.` : "";
+  const lg = snap.logging;
+  if (lg) {
+    const on = lg.stats_csv || lg.events_csv;
+    $("pLog").innerHTML = `<span class="dot ${on ? "ok" : "warn"}"></span>${on ? "Auto-saving" : "Logging off"}${lg.last_stats ? " · " + fmtClock(lg.last_stats) : ""}`;
+  }
+  if (cam?.w && cam?.h) stage.style.aspectRatio = `${cam.w} / ${cam.h}`;
+  if (document.activeElement !== $("privacy") && snap.privacy) $("privacy").value = snap.privacy.video_mode;
+  const b = $("perfBanner");
+  if (slow && cam.device === "CPU") {
+    b.innerHTML = `<span>▲</span><span>Detection is running on the <b>CPU at ${snap.fps} fps</b>. Doors and lines are counted with gap-tolerant logic, but for the most reliable results with fast walkers install the GPU build of PyTorch:
+      <code>pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124 --force-reinstall</code> then restart.</span>`;
+    b.classList.add("show");
+  } else b.classList.remove("show");
+}
+function renderHud() {
+  const cam = snap.camera; if (!cam) { $("hud").innerHTML = ""; return; }
+  const modeTxt = { blur: "people blurred", pixelate: "people pixelated", mask: "people masked", off: "video off" }[snap.privacy?.video_mode] || "";
+  const tr = snap.tracking || {};
+  $("hud").innerHTML = (cam.status === "ok" ? `<span class="live"><i></i>LIVE</span>` : "") +
+    `<span>${modeTxt}</span><span>${fmtN(snap.kpis?.in_view ?? 0)} in view</span>` +
+    `<span title="tracks active / being recovered / re-linked after a loss">tracking ${tr.active ?? 0} · recovering ${tr.recovering ?? 0} · re-linked ${tr.stitched ?? 0}</span>`;
+}
+function renderKpis() {
+  const k = snap.kpis || {}, net = (k.entries ?? 0) - (k.exits ?? 0);
+  const tiles = [
+    [fmtN(k.in_view ?? 0), "People in view now"],
+    [k.entries ?? 0, "Entries"],
+    [k.exits ?? 0, "Exits"],
+    [(net >= 0 ? "+" : "") + net, "Net flow since start"],
+    [fmtDur(k.avg_dwell_s), `Avg dwell (${snap.window_min ?? 15} min)`],
+    [fmtDur(k.longest_wait_s), "Longest current wait"],
+  ];
+  $("kpis").innerHTML = tiles.map(([v, l]) => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+}
+function renderTables() {
+  const zs = (snap.zones || []).filter(z => z.type !== "door"), cs = snap.counters || [], w = snap.window_min ?? 15;
+  const col = id => (draft?.zones.find(d => d.id === id) || draft?.lines.find(d => d.id === id) || {}).color || "#888";
+  $("zTitle").textContent = `Zone performance · last ${w} min`;
+  $("zTable").innerHTML = zs.length ? `<thead><tr><th>Zone</th><th>Status</th><th>Now</th><th>Peak</th><th>Visits</th><th>Visits/h</th>
+    <th>Avg dwell</th><th>Median</th><th>P90</th><th>Max</th><th>Longest now</th><th>Capacity</th></tr></thead><tbody>` +
+    zs.map(z => `<tr><td><span style="display:inline-flex;gap:8px;align-items:center"><span class="swatch" style="background:${col(z.id)}"></span>${esc(z.name)} <span class="tag">${z.type}</span></span></td>
+      <td>${statusTag(z.status)}</td><td>${fmtN(z.count)}</td><td>${z.peak}</td><td>${z.visits_window}</td><td>${z.throughput_hr}</td>
+      <td>${fmtDur(z.avg_dwell_s)}</td><td>${fmtDur(z.median_dwell_s)}</td><td>${fmtDur(z.p90_dwell_s)}</td><td>${fmtDur(z.max_dwell_s)}</td>
+      <td>${fmtDur(z.longest_current_s)}</td><td>${z.capacity ? Math.round((z.utilisation || 0) * 100) + "% of " + z.capacity : "–"}</td></tr>`).join("") + "</tbody>"
+    : `<tbody><tr><td class="empty">Draw and save a queue, service or area zone to see dwell and occupancy statistics.</td></tr></tbody>`;
+  $("cTitle").textContent = `Entries & exits · totals and last ${w} min`;
+  $("cTable").innerHTML = cs.length ? `<thead><tr><th>Counter</th><th>In</th><th>Out</th><th>Net</th><th>In/h</th><th>Out/h</th></tr></thead><tbody>` +
+    cs.map(c => `<tr><td><span style="display:inline-flex;gap:8px;align-items:center"><span class="swatch" style="background:${col(c.id)}"></span>${esc(c.name)} <span class="tag">${c.kind} · ${c.role === "internal" ? esc((c.from_area || "?") + " → " + (c.to_area || "?")) : c.role === "ignore" ? "ignored" : "site entrance"}</span></span></td>
+      <td title="${esc(c.in_label)}">${c.in}</td><td title="${esc(c.out_label)}">${c.out}</td>
+      <td>${c.net >= 0 ? "+" : ""}${c.net}</td><td>${c.in_hr}</td><td>${c.out_hr}</td></tr>`).join("") + "</tbody>"
+    : `<tbody><tr><td class="empty">Draw a door zone or a counting line to count entries and exits.</td></tr></tbody>`;
+}
+function renderLogs() {
+  const act = snap.alerts || [], past = snap.alerts_log || [];
+  $("alerts").innerHTML = (act.length || past.length)
+    ? act.map(a => `<div><time>${fmtClock(a.since)}</time>${statusTag("critical")}<span>${esc(a.text)} · active ${fmtDur(snap.ts - a.since)}</span></div>`).join("") +
+      past.map(a => `<div><time>${fmtClock(a.since)}</time>${statusTag("ok")}<span style="color:var(--text-secondary)">${esc(a.text)} · lasted ${fmtDur(a.ended - a.since)}</span></div>`).join("")
+    : `<div class="empty">No alerts. Set a capacity or wait-alert threshold on a zone to enable them.</div>`;
+  const ev = snap.events || [];
+  $("events").innerHTML = ev.length ? ev.map(e => `<div><time>${fmtClock(e.t, true)}</time><span class="k">${e.kind}</span><span>${esc(e.text)}</span></div>`).join("")
+    : `<div class="empty">Events appear here as people pass doors and lines and finish zone visits.</div>`;
+  const lg = snap.logging;
+  if (lg) {
+    if (document.activeElement !== $("lgStats")) $("lgStats").checked = !!lg.stats_csv;
+    if (document.activeElement !== $("lgEvents")) $("lgEvents").checked = !!lg.events_csv;
+    $("lgStatus").innerHTML = `Saved automatically to <b>${esc(lg.folder)}</b><br>` +
+      `Statistics: ${lg.stats_csv ? (lg.last_stats ? "last written " + fmtClock(lg.last_stats, true) : "first row at the end of this minute") : "off"} · ` +
+      `Events: ${lg.events_csv ? (lg.last_event ? "last written " + fmtClock(lg.last_event, true) : "waiting for the first event") : "off"}<br>` +
+      `Totals are also kept in <b>state.json</b> (every 30 s) so they survive a restart.`;
+  }
+}
+let lastFiles = 0;
+async function loadFiles() {
+  try {
+    const files = await api("/api/logs");
+    $("lgFiles").innerHTML = files.map(f => `<a href="/api/logs/${encodeURIComponent(f.name)}" download><span>${esc(f.name)}</span><span>${fmtBytes(f.bytes)}</span></a>`).join("") || `<div class="note">No log files yet.</div>`;
+  } catch { /* ignore */ }
+}
+async function setLogging(patch) {
+  try { const r = await api("/api/config", { method: "PUT", body: JSON.stringify({ logging: patch }) }); cfg.logging = r.logging; toast("Logging updated"); }
+  catch (e) { toast(e.message); }
+}
+$("lgStats").onchange = e => setLogging({ stats_csv: e.target.checked });
+$("lgEvents").onchange = e => setLogging({ events_csv: e.target.checked });
+
+function renderLive() {
+  renderHub();
+  renderHeader(); syncVideo(); renderHud(); renderKpis(); renderHeat(); renderTables(); renderLogs();
+  if (!drag && mode === "select") renderOverlay();
+  if (!sel) renderPanel();
+  syncOnboard();
+  if (Date.now() - lastFiles > 30000) { lastFiles = Date.now(); loadFiles(); }
+}
+
+/* ====================================================================== charts */
+function niceStep(v, int) {
+  if (v <= 0) return 1;
+  const p = 10 ** Math.floor(Math.log10(v)), n = v / p;
+  const s = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+  return int ? Math.max(1, Math.round(s)) : s;
+}
+function makeChart(canvas, legend) {
+  const c = { canvas, legend, spec: null };
+  canvas.addEventListener("mousemove", e => { const r = canvas.getBoundingClientRect(); c.mx = e.clientX - r.left; c.cx = e.clientX; c.cy = e.clientY; drawChart(c); });
+  canvas.addEventListener("mouseleave", () => { c.mx = null; hideTip(); drawChart(c); });
+  return c;
+}
+function setChart(c, spec) {
+  c.spec = spec;
+  c.legend.innerHTML = spec.series.length > 1 ? spec.series.map(s => `<span><i class="${spec.type === "bar" ? "sq" : ""}" style="background:${s.color}"></i>${esc(s.name)}</span>`).join("") : "";
+  drawChart(c);
+}
+function drawChart(c) {
+  const [ctx, W, H] = fitCanvas(c.canvas), sp = c.spec;
+  ctx.clearRect(0, 0, W, H);
+  const muted = "#8d8c84", grid = "#2a2a28";
+  ctx.font = "11px Segoe UI, system-ui, sans-serif";
+  const vals = sp ? sp.series.flatMap(s => s.values).filter(v => v != null) : [];
+  if (!sp || !sp.x.length || (!vals.length && !sp.zeroOk)) {
+    ctx.fillStyle = muted; ctx.textAlign = "center"; ctx.fillText(sp?.empty || "No data yet", W / 2, H / 2); ctx.textAlign = "left"; return;
+  }
+  const pad = { l: 44, r: 10, t: 8, b: 24 }, pw = W - pad.l - pad.r, ph = H - pad.t - pad.b, n = sp.x.length;
+  const raw = Math.max(...vals, sp.minMax || 0) * 1.05, stepY = niceStep(raw / 4, sp.intY), ymax = Math.ceil(raw / stepY) * stepY;
+  const y = v => pad.t + ph - v / ymax * ph;
+  const band = pw / n, xc = i => sp.type === "bar" ? pad.l + band * (i + .5) : pad.l + (n === 1 ? pw / 2 : i / (n - 1) * pw);
+  ctx.strokeStyle = grid; ctx.lineWidth = 1; ctx.fillStyle = muted; ctx.textAlign = "right";
+  for (let v = 0; v <= ymax + 1e-9; v += stepY) {
+    const yy = Math.round(y(v)) + .5;
+    ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(W - pad.r, yy); ctx.stroke();
+    ctx.fillText(sp.yFmt ? sp.yFmt(v) : +v.toFixed(1), pad.l - 6, yy + 4);
+  }
+  ctx.textAlign = "center";
+  const step = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(pw / 70))));
+  for (let i = 0; i < n; i += step) ctx.fillText(sp.xFmt(sp.x[i]), clamp(xc(i), pad.l + 16, W - pad.r - 16), H - 6);
+  let hi = null;
+  if (c.mx != null && c.mx >= pad.l && c.mx <= W - pad.r) hi = sp.type === "bar" ? clamp(Math.floor((c.mx - pad.l) / band), 0, n - 1) : Math.round(clamp((c.mx - pad.l) / (pw || 1)) * (n - 1));
+  if (sp.type === "bar") {
+    const m = sp.series.length, gw = Math.min(band * .78, 64), gap = m > 1 ? 2 : 0, bw = Math.max(1, (gw - gap * (m - 1)) / m);
+    if (hi != null) { ctx.fillStyle = "rgba(255,255,255,.04)"; ctx.fillRect(pad.l + band * hi, pad.t, band, ph); }
+    sp.series.forEach((s, k) => {
+      ctx.fillStyle = s.color;
+      s.values.forEach((v, i) => {
+        if (!v) return;
+        const x0 = xc(i) - gw / 2 + k * (bw + gap), y0 = y(v), h = pad.t + ph - y0, r = Math.min(4, bw / 2, h);
+        ctx.beginPath(); ctx.roundRect(x0, y0, bw, h, [r, r, 0, 0]); ctx.fill();
+      });
+    });
+  } else {
+    if (hi != null) { ctx.strokeStyle = "#5a5953"; ctx.beginPath(); ctx.moveTo(xc(hi) + .5, pad.t); ctx.lineTo(xc(hi) + .5, pad.t + ph); ctx.stroke(); }
+    ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    sp.series.forEach(s => {
+      ctx.strokeStyle = s.color; ctx.setLineDash(s.dash ? [5, 4] : []); ctx.beginPath(); let pen = false;
+      s.values.forEach((v, i) => { if (v == null) { pen = false; return; } pen ? ctx.lineTo(xc(i), y(v)) : ctx.moveTo(xc(i), y(v)); pen = true; });
+      ctx.stroke();
+      s.values.forEach((v, i) => { if (v != null && s.values[i - 1] == null && s.values[i + 1] == null) { ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(xc(i), y(v), 2.5, 0, 7); ctx.fill(); } });
+    });
+    ctx.setLineDash([]);
+    if (hi != null) sp.series.forEach(s => {
+      const v = s.values[hi]; if (v == null) return;
+      ctx.fillStyle = s.color; ctx.strokeStyle = "#1a1a19"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(xc(hi), y(v), 4.5, 0, 7); ctx.fill(); ctx.stroke();
+    });
+  }
+  ctx.textAlign = "left";
+  if (hi != null) {
+    showTip(`<div class="t">${esc(sp.tipX ? sp.tipX(sp.x[hi]) : sp.xFmt(sp.x[hi]))}</div>` + sp.series.map(s =>
+      `<div class="r"><i style="width:10px;height:10px;border-radius:3px;background:${s.color};display:inline-block"></i>${esc(s.name)}<b>${s.values[hi] == null ? "–" : (sp.vFmt ? sp.vFmt(s.values[hi]) : s.values[hi])}</b></div>`).join(""), c.cx, c.cy);
+  } else if (c.mx != null) hideTip();
+}
+const charts = { occ: makeChart($("cOcc"), $("lOcc")), flow: makeChart($("cFlow"), $("lFlow")), dwell: makeChart($("cDwell"), $("lDwell")), hist: makeChart($("cHist"), $("lHist")) };
+
+function binSeries(s) {
+  const binMin = { 15: 1, 60: 1, 360: 5, 1440: 15 }[range] || 1, bs = binMin * 60, now = Date.now() / 1000;
+  const first = s.buckets.length ? s.buckets[0].t : now;
+  const from = Math.max(now - range * 60, Math.min(first, now - Math.min(range, 10) * 60));
+  const start = Math.floor(from / bs) * bs, nb = Math.floor((now - start) / bs) + 1;
+  const bins = Array.from({ length: nb }, (_, i) => ({ t: start + i * bs, list: [] }));
+  for (const b of s.buckets) { const i = Math.floor((b.t - start) / bs); if (i >= 0 && i < nb) bins[i].list.push(b); }
+  return { bins, binMin };
+}
+function renderCharts() {
+  if (!series || !cfg) return;
+  const { bins, binMin } = binSeries(series), x = bins.map(b => b.t);
+  const xFmt = t => fmtClock(t), tipX = t => binMin > 1 ? `${fmtClock(t)}–${fmtClock(t + binMin * 60)}` : fmtClock(t);
+  const color = id => (cfg.zones.find(z => z.id === id) || cfg.lines.find(l => l.id === id) || {}).color || "#888";
+  const avgOf = (list, f) => { const v = list.map(f).filter(v => v != null); return v.length ? +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(2) : null; };
+  const zones = series.zones.filter(z => z.type !== "door");
+  setChart(charts.occ, { type: "line", x, xFmt, tipX, minMax: 2, vFmt: v => v.toFixed(1),
+    series: [{ name: "All in view", color: "#c3c2b7", dash: true, values: bins.map(b => avgOf(b.list, q => q.people_avg)) }]
+      .concat(zones.map(z => ({ name: z.name, color: color(z.id), values: bins.map(b => avgOf(b.list, q => q.z[z.id]?.occ_avg)) }))) });
+
+  const cs = $("ctrSel"), cv = cs.value;
+  cs.innerHTML = `<option value="">All doors &amp; lines</option>` + series.counters.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
+  cs.value = series.counters.some(c => c.id === cv) ? cv : "";
+  const ids = cs.value ? [cs.value] : series.counters.map(c => c.id);
+  const sum = (b, k) => b.list.length ? b.list.reduce((a, q) => a + ids.reduce((s, id) => s + (q.c?.[id]?.[k] || 0), 0), 0) : null;
+  setChart(charts.flow, series.counters.length ? { type: "bar", x, xFmt, tipX, zeroOk: true, minMax: 2, intY: true, yFmt: v => Math.round(v),
+    series: [{ name: "In", color: "#3987e5", values: bins.map(b => sum(b, "in")) }, { name: "Out", color: "#d95926", values: bins.map(b => sum(b, "out")) }] }
+    : { type: "bar", x: [], series: [], empty: "Draw a door zone or counting line to see footfall" });
+
+  setChart(charts.dwell, zones.length ? { type: "line", x, xFmt, tipX, yFmt: v => fmtDur(v), vFmt: fmtDur, minMax: 30,
+    series: zones.map(z => ({ name: z.name, color: color(z.id), values: bins.map(b => {
+      const s = b.list.reduce((a, q) => a + (q.z[z.id]?.dwell_sum || 0), 0), n = b.list.reduce((a, q) => a + (q.z[z.id]?.dwell_n || 0), 0);
+      return n ? +(s / n).toFixed(1) : null; }) })), empty: "No completed visits in this range yet" }
+    : { type: "line", x: [], series: [], empty: "Draw a zone to measure dwell time" });
+
+  const zsel = $("zoneSel"), zv = zsel.value;
+  zsel.innerHTML = zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join("");
+  zsel.value = zones.some(z => z.id === zv) ? zv : (zones[0]?.id || "");
+  const hz = zsel.value;
+  setChart(charts.hist, hz ? { type: "bar", x: series.dwell_bins, xFmt: v => v, zeroOk: true, minMax: 2, intY: true, yFmt: v => Math.round(v),
+    series: [{ name: "Visits", color: color(hz), values: series.dwell_hist[hz] }], vFmt: v => `${v} visits` }
+    : { type: "bar", x: [], series: [], empty: "Draw a zone to see the dwell distribution" });
+}
+async function loadSeries() { try { series = await api(`/api/series?minutes=${range}`); renderCharts(); } catch { /* restarting */ } }
+document.querySelectorAll("#ranges button").forEach(b => b.onclick = () => {
+  range = +b.dataset.r; document.querySelectorAll("#ranges button").forEach(x => x.classList.toggle("on", x === b));
+  $("export").href = `/api/export.csv?minutes=${Math.max(range, 60)}`; loadSeries();
+});
+$("ctrSel").onchange = renderCharts; $("zoneSel").onchange = renderCharts;
+
+/* ==================================================================== controls */
+["lyVideo", "lyHeat", "heatRange", "heatOp", "lyShapes"].forEach(id => $(id).addEventListener("input", () => { syncVideo(); renderHeat(); renderOverlay(); }));
+$("privacy").onchange = async e => {
+  try { const r = await api("/api/config", { method: "PUT", body: JSON.stringify({ privacy: { video_mode: e.target.value } }) }); cfg.privacy = r.privacy; videoWanted = null; toast("Live view: " + e.target.selectedOptions[0].text); }
+  catch (err) { toast(err.message); }
+};
+$("reset").onclick = async () => {
+  const b = $("reset");
+  if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = "Click again to reset"; setTimeout(() => { delete b.dataset.armed; b.textContent = "Reset stats"; }, 3000); return; }
+  delete b.dataset.armed; b.textContent = "Reset stats";
+  try { await api("/api/reset", { method: "POST" }); toast("Statistics reset (log files are kept)"); loadSeries(); }
+  catch (e) { toast("Reset failed: " + e.message); }
+};
+$("fullscreen").onclick = () => { document.fullscreenElement ? document.exitFullscreen() : $("stageWrap").requestFullscreen?.(); };
+document.addEventListener("fullscreenchange", () => setTimeout(() => { renderOverlay(); renderHeat(); }, 100));
+/* ================================================================ hub + floor */
+function fillHub() {
+  $("nName").value = cfg.node?.name || ""; $("nSite").value = cfg.node?.site || "";
+  $("hUrl").value = cfg.hub?.url || ""; $("hToken").value = cfg.hub?.token || ""; $("hOn").checked = !!cfg.hub?.enabled;
+}
+$("hSave").onclick = async () => {
+  try {
+    const r = await api("/api/config", { method: "PUT", body: JSON.stringify({
+      node: { name: $("nName").value, site: $("nSite").value },
+      hub: { url: $("hUrl").value, token: $("hToken").value, enabled: $("hOn").checked } }) });
+    cfg.node = r.node; cfg.hub = r.hub; fillHub(); toast(r.hub.enabled ? "Saved - connecting to the hub" : "Saved");
+  } catch (e) { toast("Not saved: " + e.message); }
+};
+function renderHub() {
+  const h = snap.hub; if (!h) return;
+  const map = { connected: ["ok", "connected"], off: ["", "off"], unreachable: ["warn", "can't reach hub"], rejected: ["warn", "token rejected"], error: ["warn", "hub error"] };
+  const [cls, txt] = map[h.status] || ["", h.status];
+  $("hubPill").innerHTML = `<span class="dot ${cls}"></span>${txt}`;
+  $("hubStatus").innerHTML = !h.enabled ? "Not connected. Fill in the hub address and token, tick <b>Send data to the hub</b>, then save." :
+    h.status === "connected" ? `Connected to <b>${esc(h.url)}</b> · last sync ${fmtClock(h.last_ok, true)}${h.queued_minutes ? ` · ${h.queued_minutes} minutes waiting to upload` : ""}` :
+    `${esc(h.last_error || "Connecting…")}${h.queued_minutes ? `<br><b>${h.queued_minutes}</b> minutes of statistics are saved here and will upload when the hub is back.` : ""}`;
+  const f = snap.floor;
+  $("floorPill").innerHTML = f?.calibrated ? `<span class="dot ok"></span>mapped` : "optional";
+}
+// --- calibration modal: alternate clicks camera -> plan, 4 pairs (more allowed)
+let fPts = { cam: [], plan: [] };
+function fDraw() {
+  const n = Math.max(fPts.cam.length, fPts.plan.length);
+  for (const [k, id, imgId] of [["cam", "fCamSvg", "fCam"], ["plan", "fPlanSvg", "fPlan"]]) {
+    const el = $(id), img = $(imgId), r = img.getBoundingClientRect(), wr = el.parentElement.getBoundingClientRect();
+    Object.assign(el.style, { left: (r.left - wr.left) + "px", top: (r.top - wr.top) + "px", width: r.width + "px", height: r.height + "px" });
+    el.setAttribute("viewBox", `0 0 ${r.width} ${r.height}`);
+    el.innerHTML = fPts[k].map(([x, y], i) => `<g><circle cx="${x * r.width}" cy="${y * r.height}" r="13" fill="${PALETTE[i % 8]}" stroke="#fff" stroke-width="2"/>
+      <text x="${x * r.width}" y="${y * r.height + 4}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">${i + 1}</text></g>`).join("") +
+      (fPts.cam.length > 2 && k === "cam" ? `<polygon points="${fPts.cam.map(([x, y]) => `${x * r.width},${y * r.height}`).join(" ")}" fill="none" stroke="#fff" stroke-dasharray="4 4" stroke-opacity=".5"/>` : "") +
+      (fPts.plan.length > 2 && k === "plan" ? `<polygon points="${fPts.plan.map(([x, y]) => `${x * r.width},${y * r.height}`).join(" ")}" fill="none" stroke="#fff" stroke-dasharray="4 4" stroke-opacity=".5"/>` : "");
+  }
+  const next = fPts.cam.length === fPts.plan.length ? "camera view" : "floor plan";
+  $("fHint").innerHTML = `Point ${Math.min(fPts.cam.length, fPts.plan.length) + (fPts.cam.length === fPts.plan.length ? 1 : 0)}: click on the <b>${next}</b>. ` +
+    `Use spots on the floor that are easy to find in both, spread out wide. ${n >= 4 && fPts.cam.length === fPts.plan.length ? "<b>Ready to save</b> (more points improve accuracy)." : "4 pairs needed."}`;
+  $("fSave").disabled = !(fPts.cam.length >= 4 && fPts.cam.length === fPts.plan.length);
+}
+function fClick(kind) {
+  return e => {
+    const want = fPts.cam.length === fPts.plan.length ? "cam" : "plan";
+    if (kind !== want) { toast(want === "cam" ? "Click the camera view first" : "Now click the same spot on the floor plan"); return; }
+    const r = e.currentTarget.querySelector("img").getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+    fPts[kind].push([+clamp((e.clientX - r.left) / r.width).toFixed(4), +clamp((e.clientY - r.top) / r.height).toFixed(4)]);
+    fDraw();
+  };
+}
+$("fCamWrap").onclick = fClick("cam"); $("fPlanWrap").onclick = fClick("plan");
+$("fUndo").onclick = () => { (fPts.plan.length === fPts.cam.length ? fPts.plan : fPts.cam).pop(); fDraw(); };
+let planUrl = null;
+$("fCancel").onclick = () => { $("fModal").hidden = true; $("fCam").removeAttribute("src"); };
+$("fOpen").onclick = async () => {
+  if (!snap.hub?.enabled) { toast("Connect this camera to a hub first (Site hub)"); return; }
+  let test;
+  try { test = await fetch("/api/hub/floorplan", { method: "GET" }); } catch { toast("Can't reach this camera's server"); return; }
+  if (!test.ok) { toast("The hub has no floor plan yet - upload one on the hub's Settings page"); return; }
+  const blob = await test.blob(); if (planUrl) URL.revokeObjectURL(planUrl); planUrl = URL.createObjectURL(blob); $("fPlan").src = planUrl;
+  if (snap.privacy?.video_mode === "off") $("fCam").removeAttribute("src"); else $("fCam").src = "/video.mjpg?cal=" + Date.now();
+  if (snap.privacy?.video_mode === "off") toast("Live view is off - switch it on to see the camera while mapping");
+  fPts = { cam: (cfg.floor?.cam_pts || []).slice(), plan: (cfg.floor?.plan_pts || []).slice() };
+  $("fModal").hidden = false;
+  [$("fCam"), $("fPlan")].forEach(img => img.onload = fDraw);
+  setTimeout(fDraw, 300);
+};
+$("fSave").onclick = async () => {
+  try { const r = await api("/api/floor", { method: "PUT", body: JSON.stringify({ cam_pts: fPts.cam, plan_pts: fPts.plan }) });
+    cfg.floor = r; $("fModal").hidden = true; $("fCam").removeAttribute("src"); toast("Floor plan mapping saved"); }
+  catch (e) { toast("Not saved: " + e.message); }
+};
+$("fClear").onclick = async () => { try { const r = await api("/api/floor", { method: "DELETE" }); cfg.floor = r; toast("Mapping removed"); } catch (e) { toast(e.message); } };
+addEventListener("resize", () => { if (!$("fModal").hidden) fDraw(); });
+
+function fillSettings() {
+  $("sSource").value = cfg.camera.source; $("sWindow").value = String(cfg.analytics.stats_window_min);
+  $("sMinDwell").value = cfg.analytics.min_dwell_s; $("sHalf").value = cfg.analytics.heat_half_life_s; $("sK").value = cfg.privacy.k_min;
+}
+$("sSave").onclick = async () => {
+  try {
+    const res = await api("/api/config", { method: "PUT", body: JSON.stringify({
+      camera: { source: $("sSource").value }, privacy: { k_min: +$("sK").value || 0 },
+      analytics: { stats_window_min: +$("sWindow").value, min_dwell_s: +$("sMinDwell").value, heat_half_life_s: +$("sHalf").value } }) });
+    cfg.camera = res.camera; cfg.analytics = res.analytics; cfg.privacy = res.privacy; fillSettings(); toast("Settings applied");
+  } catch (e) { toast("Settings rejected: " + e.message); }
+};
+
+/* =================================================================== transport */
+function connect() {
+  const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
+  ws.onopen = () => $("pConn").innerHTML = `<span class="dot ok"></span><span>Connected</span>`;
+  ws.onmessage = e => { try { const d = JSON.parse(e.data); if (d && d.ts) { snap = d; renderLive(); } } catch (err) { console.error(err); } };
+  ws.onclose = () => { $("pConn").innerHTML = `<span class="dot"></span><span>Reconnecting…</span>`; videoWanted = null; setTimeout(connect, 1500); };
+}
+let resizeT; addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { renderOverlay(); renderHeat(); Object.values(charts).forEach(drawChart); }, 60); });
+
+(async function init() {
+  for (;;) { try { cfg = normCfg(await api("/api/config")); break; } catch { await new Promise(r => setTimeout(r, 1500)); } }
+  draft = clone(cfg); fillSettings(); fillHub(); updateHint(); renderPanel(); renderOverlay(); syncVideo(); syncOnboard(); syncUndo();
+  connect(); loadSeries(); loadFiles(); setInterval(loadSeries, 15000);
+})();
+</script>
+</body>
+</html>
